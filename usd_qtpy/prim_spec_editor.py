@@ -4,7 +4,7 @@ from pxr import Usd, Tf, Sdf
 from PySide2 import QtCore, QtWidgets, QtGui
 
 from .lib.qt import schedule
-from .lib.usd import remove_spec
+from .lib.usd import remove_spec, LIST_ATTRS
 
 
 log = logging.getLogger(__name__)
@@ -273,19 +273,20 @@ class StageSdfModel(TreeModel):
                     #    })
                     #    spec_item.add_child(selection_item)
 
-                    for key in ["variantSetName",
-                                "reference",
-                                "payload"]:
+                    for key in [
+                        #"variantSetName",  # todo: these don't have `.assetPath`
+                        "reference",
+                        "payload"
+                    ]:
                         list_changes = getattr(spec, key + "List")
-                        for change_type in ['added', 'appended', 'deleted',
-                                            'explicit', 'ordered',
-                                            'prepended']:
+                        for change_type in LIST_ATTRS:
                             changes_for_type = getattr(list_changes,
-                                                       change_type + "Items")
+                                                       change_type)
                             for change in changes_for_type:
                                 list_change_item = Item({
                                     "name": change.assetPath,
-                                    "default": change_type,
+                                    # Strip off "Items"
+                                    "default": change_type[:-5],
                                     "type": key
                                 })
                                 spec_item.add_child(list_change_item)
