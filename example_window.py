@@ -4,7 +4,7 @@ from pxr import Usd
 from usd_qtpy import prim_hierarchy, layer_editor, prim_spec_editor
 
 try:
-    from usd_qt import viewer
+    from usd_qtpy import viewer
     HAS_VIEWER = True
 except ImportError:
     print("Unable to import usdview dependencies, skipping view..")
