@@ -53,7 +53,7 @@ Unlike [Luma Pictures's  `usd-qt`](https://github.com/LumaPictures/usd-qt) this 
 redistributable by avoiding the need for extra C++ dependencies and solely
 use the USD Python API. This will keep the build matrix simpler but does mean
 the repository is not - by design - built for highly optimized large scale 
-applications. Nonetheless the intent is still to be able to carry average VFX 
+applications. Nonetheless, the intent is still to be able to carry average VFX 
 scenes for debugging.
 
 
