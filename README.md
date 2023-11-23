@@ -57,8 +57,24 @@ applications. Nonetheless, the intent is still to be able to carry average VFX
 scenes for debugging.
 
 
-#### Dependencies
+
+## install 
+### from pip
+```
+python -m pip install usd-qtpy
+```
+### from repo
+```
+python -m pip install git+https://github.com/BigRoy/usd-qtpy.git@main
+```
+
+
+## Dependencies
 
 The Viewer utilities are basically using `usdviewq` which may or may not
 be included in your build. This also requires `PyOpenGL`. However, the other
 tools do not and are intended to rely solely on USD core and Qt itself.
+
+- qtpy 
+- usd-core (when not using your own usd builds, install with `[usd]`)
+- PyOpenGL (needed for usd viewport, install with `[usdview]`; you will still need use a custom `usd` build yourself for `pxr.Usdviewq` dependency)

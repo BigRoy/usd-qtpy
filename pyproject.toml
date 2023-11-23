@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+
+
+[tool.setuptools]
+packages = ["usd_qtpy"]
+
+
+[project]
+name = "usd-qtpy"
+authors = [
+    {name = "BigRoy"},
+    {name = "Hannes"},
+]
+description = "Python Qt components for building custom USD tools."
+readme = "README.md"
+requires-python = ">=3.4"
+keywords = ["usd", "qt"]
+license = { file = "LICENSE" }
+classifiers = [
+    "Programming Language :: Python :: 3.9",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    'importlib-metadata; python_version<"3.7"', "qtpy"
+]
+version = "0.0.1"
+
+[project.optional-dependencies]
+usd = ["usd-core"]
+usdview = ["PyOpenGL"]
+
+[project.urls]
+Homepage = "https://github.com/BigRoy/usd-qtpy"
+Documentation = "https://github.com/BigRoy/usd-qtpy"
+Issues = "https://github.com/BigRoy/usd-qtpy/issues"
