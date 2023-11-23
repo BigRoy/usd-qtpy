@@ -197,7 +197,7 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
                                                             column,
                                                             parent)
 
-        # endregion
+    # endregion
 
     # region Custom methods
     def layer_count(self):
