@@ -3,6 +3,50 @@
 Python Qt components for building custom USD tools.
 
 
+#### How to use?
+
+The Qt components can be embedded in your own Qt interfaces and usually have
+a `stage` entrypoint that you should pass a `pxr.Usd.Stage` instance.
+
+However, a simple example Editor UI is also available to run standalone.
+If you have the `usd_qtpy` package you can for example run it like:
+
+```
+python -m usd_qtpy "/path/to/file.usd"
+```
+
+Want to try it within your running Python session it should be as trivial to
+do: 
+
+```python
+from pxr import Usd
+from qtpy import QtWidgets
+from usd_qtpy.editor import EditorWindow
+
+filepath = "/path/to/file.usd"
+stage = Usd.Stage.Open(filepath)
+
+app = QtWidgets.QApplication()
+dialog = EditorWindow(stage=stage)
+dialog.resize(600, 600)
+dialog.show()
+app.exec_()
+```
+
+Or if you have a running `QApplication` instance (e.g. when inside Maya):
+
+```python
+from pxr import Usd
+from usd_qtpy.editor import EditorWindow
+
+filepath = "/path/to/file.usd"
+stage = Usd.Stage.Open(filepath)
+
+dialog = EditorWindow(stage=stage)
+dialog.resize(600, 600)
+dialog.show()
+```
+
 #### Why not Luma Picture's `usd-qt`?
 
 Unlike [Luma Pictures's  `usd-qt`](https://github.com/LumaPictures/usd-qt) this repository tries to be easily 
