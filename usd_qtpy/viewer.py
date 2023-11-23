@@ -472,8 +472,6 @@ class Widget(QtWidgets.QWidget):
         # Implement some shortcuts for the widget
         # todo: move this code
 
-        print(event)
-
         key = event.key()
         # TODO: Add CTRL + R for "quick render or playblast"
         if key == QtCore.Qt.Key_Space:

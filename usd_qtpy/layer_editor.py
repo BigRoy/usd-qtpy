@@ -467,8 +467,8 @@ class LayerWidget(QtWidgets.QWidget):
         # TODO: Perform an actual save
         # TODO: Prompt for filepath if layer is anonymous?
         # TODO: Allow making filepath relative to parent layer?
-        print(f"Saving: {layer}")
-        print(layer.ExportToString())
+        log.debug(f"Saving: {layer}")
+        log.debug(layer.ExportToString())
         layer.Save()
         # TODO: Do not update using this but base it off of signals from
         #  Sdf.Notice.LayerDidSaveLayerToFile
@@ -550,7 +550,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
                 "Shows the layer as USD ASCII"
             )
 
-            def show_layer():
+            def show_layer_as_text():
                 text_edit = QtWidgets.QTextEdit(parent=self)
                 text_edit.setPlainText(layer.ExportToString())
                 text_edit.setWindowTitle(layer.identifier)
@@ -558,7 +558,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
                 text_edit.resize(700, 500)
                 text_edit.show()
 
-            action.triggered.connect(show_layer)
+            action.triggered.connect(show_layer_as_text)
 
         menu.exec_(self.view.mapToGlobal(point))
 
@@ -571,7 +571,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
         for row in iter_model_rows(self.model, column=0):
             layer = row.data(self.model.LayerRole)
             if layer is None:
-                print(f"Layer is None for {row}")
+                log.warning(f"Layer is None for %s", row)
                 continue
             widget = LayerWidget(layer=layer,
                                  stage=self.model._stage,
