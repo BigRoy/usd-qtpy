@@ -52,20 +52,22 @@ def set_tips(widget, tip):
 
 
 class LayerItem(TreeItem):
-    __slots__ = ('layer',)
+    __slots__ = ('layer', 'parent_layer')
 
-    def __init__(self, layer: Sdf.Layer):
-        super(LayerItem, self).__init__(key=layer.identifier)
+    def __init__(self, layer: Sdf.Layer, parent_layer: Sdf.Layer = None):
+        if parent_layer:
+            separator = "<--sublayer-->"  #
+            key = separator.join([parent_layer.identifier, layer.identifier])
+        else:
+            key = layer.identifier
+
+        super(LayerItem, self).__init__(key=key)
         self.layer = layer
+        self.parent_layer = parent_layer
 
 
 class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
     """Basic tree model that exposes a Stage's layer stack."""
-    # TODO: Because the item key is based on the layer.identifier it currently
-    #  does not support a single layer identifier to appear more than once
-    #  across the full layer stack; to make them correctly unique we should
-    #  make the key {parent.identifier}->{layer.identifier} a parent can
-    #  contain the sublayer identifier only once
     # TODO: Tweak this more - currently loosely based on Luma Pictures
     #  Layer Model https://github.com/LumaPictures/usd-qt/tree/master/treemodel
     headerLabels = ('Name', 'Path')
@@ -310,7 +312,8 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
                 return
 
             def add_layer(layer: Sdf.Layer, parent=None):
-                layer_item = LayerItem(layer)
+                parent_layer = parent.layer if parent else None
+                layer_item = LayerItem(layer, parent_layer=parent_layer)
                 item_tree.add_items(layer_item, parent=parent)
 
                 for sublayer_path in layer.subLayerPaths:
