@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.7",
 ]
 dependencies = [
-    'importlib-metadata; python_version<"3.7"', "qtpy", "usd-core"
+    'importlib-metadata; python_version<"3.7"', "qtpy"
 ]
 #dynamic = ["version"]
 version = "0.0.1"
