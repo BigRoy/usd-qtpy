@@ -27,12 +27,12 @@ dependencies = [
 #dynamic = ["version"]
 version = "0.0.1"
 
-# [project.optional-dependencies]
-# yaml = ["pyyaml"]
+[project.optional-dependencies]
+usd = ["usd-core"]
+usdview = ["PyOpenGL"]
 
 #[project.scripts]
 #my-script = "my_package.module:function"
-
 
 [project.urls]
 Homepage = "https://github.com/BigRoy/usd-qtpy"
