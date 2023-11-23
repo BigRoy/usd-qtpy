@@ -44,7 +44,7 @@ def launch_window(argv : list[str]) -> int:
     
     # retrieve 1st argument as path. (index 0 is always __file__)
     # More advanced parsing of arguments might be wanted in future.
-    if argv:
+    if len(argv) > 1:
         path = argv[1]
 
     stage = Usd.Stage.Open(path)
