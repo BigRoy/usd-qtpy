@@ -61,6 +61,11 @@ class LayerItem(TreeItem):
 
 class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
     """Basic tree model that exposes a Stage's layer stack."""
+    # TODO: Because the item key is based on the layer.identifier it currently
+    #  does not support a single layer identifier to appear more than once
+    #  across the full layer stack; to make them correctly unique we should
+    #  make the key {parent.identifier}->{layer.identifier} a parent can
+    #  contain the sublayer identifier only once
     # TODO: Tweak this more - currently loosely based on Luma Pictures
     #  Layer Model https://github.com/LumaPictures/usd-qt/tree/master/treemodel
     headerLabels = ('Name', 'Path')
@@ -521,6 +526,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
         action.setToolTip(
             "Add a new sublayer under the selected parent layer."
         )
+        action.triggered.connect(partial(self.on_add_layer, index))
 
         if layer:
             action = menu.addAction("Reload")
@@ -542,8 +548,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
                     "Removes the layer from the layer stack. "
                     "Does not remove files from disk"
                 )
-                action.triggered.connect(partial(self.on_remove_layer,
-                                                 index))
+                action.triggered.connect(partial(self.on_remove_layer, index))
 
             action = menu.addAction("Show as text")
             action.setToolTip(
@@ -607,6 +612,26 @@ class LayerTreeWidget(QtWidgets.QWidget):
         removed_index = remove_sublayer(layer.identifier, parent=parent_layer)
         if removed_index is not None:
             log.debug(f"Removed layer: {layer.identifier}")
+
+    def on_add_layer(self, index):
+        layer = index.data(LayerStackModel.LayerRole)
+        if not layer:
+            return
+
+        filenames, _selected_filter = QtWidgets.QFileDialog.getOpenFileNames(
+            parent=self,
+            caption="Sublayer USD file",
+            filter="USD (*.usd *.usda *.usdc);"
+        )
+        if not filenames:
+            return
+
+        # TODO: Anchor path relative to the layer?
+        # TODO: Should we first confirm none of the layers is already a child
+        #  or just let it error once it hits one matching path?
+        for filename in filenames:
+            log.debug("Adding sublayer: %s", filename)
+            layer.subLayerPaths.append(filename)
 
     def hideEvent(self, event: QtGui.QCloseEvent) -> None:
         # TODO: This should be on a better event when we know the window
