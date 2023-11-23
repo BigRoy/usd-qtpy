@@ -125,7 +125,7 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
         )
 
     def supportedDropActions(self):
-        return QtCore.Qt.MoveAction
+        return QtCore.Qt.MoveAction | QtCore.Qt.CopyAction
 
     def mimeData(self, indexes):
         mimedata = QtCore.QMimeData()
@@ -154,15 +154,54 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
     def dropMimeData(self, data, action, row, column, parent):
         if action == QtCore.Qt.IgnoreAction:
             return True
-        if not data.hasFormat("text/plain"):
-            return False
         if column > 0:
             return False
 
+        new_parent_layer = parent.data(self.LayerRole)
+        if not new_parent_layer:
+            raise RuntimeError(
+                "Can't drop on index that does not refer to a layer"
+            )
+
+        # If urls are in the data we consider only those. These are usually
+        # URLs from file drops from e.g. OS file explorer or alike.
+        if data.hasUrls():
+            for url in reversed(data.urls()):
+                path = url.toLocalFile()
+                if not path:
+                    continue
+
+                if not os.path.isfile(path):
+                    # Ignore dropped folders
+                    continue
+
+                # We first try to find or open the layer so see if it's a valid
+                # file format that way
+                try:
+                    Sdf.Layer.FindOrOpen(path)
+                except Tf.ErrorException as exc:
+                    log.error("Unable to drop unsupported file: %s",
+                              path,
+                              exc_info=exc)
+                    continue
+
+                if row == -1:
+                    # Dropped on parent
+                    new_parent_layer.subLayerPaths.append(path)
+                else:
+                    # Dropped in-between other layers
+                    new_parent_layer.subLayerPaths.insert(row, path)
+            return True
+
+        if not data.hasFormat("text/plain"):
+            return False
+
+        # Consider plain text data second
+        # TODO: This is likely better represented as a custom byte stream
+        #   and as internal mimetype data to the model
         value = data.text()
         # Parse the text data
         separator = "<----"
-
         sources = []
         for line in value.split("\n"):
             if separator not in line:
@@ -189,7 +228,6 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
                         parent=source_parent_layer
                     )
 
-                new_parent_layer = parent.data(self.LayerRole)
                 if row < 0 and column < 0:
                     # Dropped on parent, add dropped layer as child
                     new_parent_layer.subLayerPaths.append(source_identifier)
@@ -211,7 +249,7 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
         return True
 
     def mimeTypes(self):
-        return ["text/plain"]
+        return ["text/plain", "text/uri-list"]
 
     def canDropMimeData(self, data, action, row, column, parent) -> bool:
 
@@ -492,7 +530,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
         view = QtWidgets.QTreeView()
         view.setModel(model)
 
-        view.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+        view.setDragDropMode(QtWidgets.QAbstractItemView.DragDrop)
         view.setDragDropOverwriteMode(False)
         view.setColumnHidden(1, True)
         view.setHeaderHidden(True)
