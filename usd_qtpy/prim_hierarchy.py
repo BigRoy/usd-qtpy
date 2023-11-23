@@ -7,7 +7,7 @@ from pxr import Usd, Sdf, Tf
 
 
 from .lib.qt import report_error
-from .lib.usd import get_prim_types_by_group
+from .lib.usd import get_prim_types_by_group, rename_prim
 
 
 @contextlib.contextmanager
@@ -276,7 +276,7 @@ class HierarchyModel(QtCore.QAbstractItemModel):
                     # Keep original name
                     return False
 
-                lib.rename_prim(prim, value)
+                rename_prim(prim, value)
                 return True
 
         return super(HierarchyModel, self).setData(index, value, role)
