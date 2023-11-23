@@ -1,8 +1,7 @@
-
-
+import os
 import contextlib
-import os.path
 import logging
+from functools import partial
 
 from qtpy import QtWidgets, QtCore, QtGui
 
@@ -13,6 +12,38 @@ from .tree.base import AbstractTreeModelMixin
 from .lib.qt import schedule, iter_model_rows
 
 log = logging.getLogger(__name__)
+
+
+def remove_sublayer(
+    identifier, parent
+):
+    """Remove a matching identifier as sublayer from parent layer
+    
+    The `identifier` may be the full path `layer.identifier` but can also
+    be the relative anchored sublayer path (the actual value in the usd file).
+    Hence, the sublayer paths *may* be relative paths even though a layer's
+    identifier passed in may be the full path.
+    
+    Arguments:
+        identifier (str): The layer identifier to remove; this may be the
+            anchored relative identifier in
+        parent (Sdf.Layer): The parent Sdf.Layer or layer 
+            identifier to remove the child identifier for.
+    
+    Returns:
+        Optional[int]: Returns an integer for the removed sublayer index
+            if a removal occurred, otherwise returns None
+    
+    """
+    absolute_identifier = parent.ComputeAbsolutePath(identifier)
+    for i, path in enumerate(parent.subLayerPaths):
+        if (
+            path == identifier
+            # Allow anchored relative paths to match the full identifier 
+            or parent.ComputeAbsolutePath(path) == absolute_identifier
+        ):
+            del parent.subLayerPaths[i]
+            return i
 
 
 def set_tips(widget, tip):
@@ -142,23 +173,14 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
         with Sdf.ChangeBlock():
             for source_identifier, source_parent_identifier in sources:
 
-                removed_index = -1
+                removed_index = None
                 source_parent_layer = None
                 if source_parent_identifier:
-                    self.log.debug("Removing old: %s -> %s",
-                                   source_parent_identifier, source_identifier)
                     source_parent_layer = Sdf.Find(source_parent_identifier)
-
-                    # The sublayer paths *may* be relative paths even though a
-                    # layer's identifier may be the full path. As such, we just
-                    # compare whether all resolved layers are actually the
-                    # same layer identifier or not
-                    for i, path in enumerate(source_parent_layer.subLayerPaths):
-                        path = source_parent_layer.ComputeAbsolutePath(path)
-                        if path == source_identifier:
-                            removed_index = i
-                            del source_parent_layer.subLayerPaths[i]
-                            break
+                    removed_index = remove_sublayer(
+                        source_identifier, 
+                        parent=source_parent_layer
+                    )
 
                 new_parent_layer = parent.data(self.LayerRole)
                 if row < 0 and column < 0:
@@ -173,7 +195,7 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
                     if (
                         source_parent_layer
                         and source_parent_layer.identifier == new_parent_layer.identifier  # noqa
-                        and removed_index != -1 and row >= removed_index
+                        and removed_index is not None and row >= removed_index
                     ):
                         row -= 1
 
@@ -487,9 +509,9 @@ class LayerTreeWidget(QtWidgets.QWidget):
     def on_view_context_menu(self, point):
         """Generate a right mouse click context menu for the layer view"""
 
-        point_index = self.view.indexAt(point)
+        index = self.view.indexAt(point)
         stage = self.model._stage
-        layer = point_index.data(self.model.LayerRole)
+        layer = index.data(self.model.LayerRole)
         if not layer:
             layer = stage.GetRootLayer()
 
@@ -520,6 +542,8 @@ class LayerTreeWidget(QtWidgets.QWidget):
                     "Removes the layer from the layer stack. "
                     "Does not remove files from disk"
                 )
+                action.triggered.connect(partial(self.on_remove_layer,
+                                                 index))
 
             action = menu.addAction("Show as text")
             action.setToolTip(
@@ -571,6 +595,18 @@ class LayerTreeWidget(QtWidgets.QWidget):
             widget.edit_target.blockSignals(True)
             widget.edit_target.setChecked(layer == widget.layer)
             widget.edit_target.blockSignals(False)
+            
+    def on_remove_layer(self, index):
+        parent_index = self.model.parent(index)
+        
+        layer = index.data(LayerStackModel.LayerRole)
+        parent_layer = parent_index.data(LayerStackModel.LayerRole)
+        if not layer or not parent_layer:
+            return
+
+        removed_index = remove_sublayer(layer.identifier, parent=parent_layer)
+        if removed_index is not None:
+            log.debug(f"Removed layer: {layer.identifier}")
 
     def hideEvent(self, event: QtGui.QCloseEvent) -> None:
         # TODO: This should be on a better event when we know the window
