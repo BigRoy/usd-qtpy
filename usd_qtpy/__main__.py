@@ -27,8 +27,8 @@ def main():
     stage = Usd.Stage.Open(filepath)
     app = QtWidgets.QApplication()
     dialog = EditorWindow(stage=stage)
-    dialog.show()
     dialog.resize(600, 600)
+    dialog.show()
     app.exec_()
 
 
