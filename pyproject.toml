@@ -1,6 +1,5 @@
 [build-system]
 requires = ["setuptools", "setuptools-scm"]
-#build-backend = "setuptools.build_meta"
 
 
 [tool.setuptools]
@@ -24,15 +23,11 @@ classifiers = [
 dependencies = [
     'importlib-metadata; python_version<"3.7"', "qtpy"
 ]
-#dynamic = ["version"]
 version = "0.0.1"
 
 [project.optional-dependencies]
 usd = ["usd-core"]
 usdview = ["PyOpenGL"]
-
-#[project.scripts]
-#my-script = "my_package.module:function"
 
 [project.urls]
 Homepage = "https://github.com/BigRoy/usd-qtpy"
