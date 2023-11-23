@@ -56,7 +56,7 @@ class LayerItem(TreeItem):
 
     def __init__(self, layer: Sdf.Layer, parent_layer: Sdf.Layer = None):
         if parent_layer:
-            separator = "<--sublayer-->"  #
+            separator = "<--sublayer-->"
             key = separator.join([parent_layer.identifier, layer.identifier])
         else:
             key = layer.identifier
