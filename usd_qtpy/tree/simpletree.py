@@ -1,4 +1,8 @@
+import logging
+
 from PySide2 import QtCore
+
+log = logging.getLogger(__name__)
 
 
 class TreeModel(QtCore.QAbstractItemModel):
