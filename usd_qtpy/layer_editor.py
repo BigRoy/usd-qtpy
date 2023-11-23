@@ -311,6 +311,7 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
         # rebuilding the layer list then at all actually. But we need the
         # signal otherwise we can't detect layers added/removed to begin with.
         schedule(self.refresh, 50, channel="layerschanged")
+    # endregion
 
 
 class LayerWidget(QtWidgets.QWidget):
