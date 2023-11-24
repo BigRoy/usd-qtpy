@@ -10,6 +10,7 @@ from pxr import Sdf, Usd, Tf
 from .tree.itemtree import ItemTree, TreeItem
 from .tree.base import AbstractTreeModelMixin
 from .lib.qt import schedule, iter_model_rows
+from .layer_diff import LayerDiffWidget
 
 log = logging.getLogger(__name__)
 
@@ -605,6 +606,23 @@ class LayerTreeWidget(QtWidgets.QWidget):
                 text_edit.show()
 
             action.triggered.connect(show_layer_as_text)
+
+            action = menu.addAction("Show diff")
+            action.setToolTip(
+                "Show a USD ASCII diff for the unsaved changes comparing "
+                "to the layer on disk"
+            )
+            action.setEnabled(not layer.anonymous)
+
+            def show_layer_diff():
+                widget = LayerDiffWidget(
+                    layer,
+                    layer_a_label=f"{layer.identifier} (on disk)",
+                    layer_b_label=f"{layer.identifier} (active)",
+                    parent=self)
+                widget.show()
+
+            action.triggered.connect(show_layer_diff)
 
         menu.exec_(self.view.mapToGlobal(point))
 
