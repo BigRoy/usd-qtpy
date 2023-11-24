@@ -1,6 +1,7 @@
+import re
 import sys
 import logging
-from qtpy import QtCore
+from qtpy import QtCore, QtGui
 
 
 class SharedObjects:
@@ -62,3 +63,33 @@ def report_error(fn):
             raise RuntimeError(f"Error from {fn}") from exc
 
     return wrap
+
+
+class DifflibSyntaxHighlighter(QtGui.QSyntaxHighlighter):
+    """Simple Syntax highlighter for output from Python's `difflib` module"""
+
+    def __init__(self, parent=None):
+        super(DifflibSyntaxHighlighter, self).__init__(parent)
+
+        self._highlight_rules = {}
+        rules = {
+            r"^-{3} .*$": "#FF8B28",     # file before
+            r"^\+{3} .*$": "#FF8B28",    # file after
+            r"^[+].*": "#55FF55",        # added line
+            r"^-.*": "#FF5555",          # removed line
+            r" .*": "#999999",           # unchanged line
+            r"^@@ .* @@$": "#0D98BA",    # line number indicator
+        }
+        for pattern, color in rules.items():
+            char_format = QtGui.QTextCharFormat()
+            char_format.setForeground(QtGui.QColor(color))
+            self._highlight_rules[re.compile(pattern)] = char_format
+
+    def highlightBlock(self, text):
+
+        for regex, char_format in self._highlight_rules.items():
+            match = regex.match(text)
+            if match:
+                # Format the full block
+                self.setFormat(0, len(text), char_format)
+                return
