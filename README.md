@@ -1,4 +1,5 @@
-# USD-QtPy
+# USD-QtPy ![PyPI - Version](https://img.shields.io/pypi/v/usd-qtpy)
+
 
 Python Qt components for building custom USD tools.
 
