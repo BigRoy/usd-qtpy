@@ -28,33 +28,23 @@ class EditorWindow(QtWidgets.QDialog):
         splitter = QtWidgets.QSplitter(self)
         layout.addWidget(splitter)
 
-        # Menu bar
         menubar = QtWidgets.QMenuBar()
-
-        file_action = menubar.addAction("File")
-        tools_action = menubar.addAction("Tools")
-        about_action = menubar.addAction("About")
 
         def print_label(action : QtWidgets.QAction):
             print(action.text())
 
         menubar.triggered.connect(print_label)
 
-        file_menu = QtWidgets.QMenu()
-        tools_menu = QtWidgets.QMenu()
-        about_menu = QtWidgets.QMenu()
-
-        file_action.setMenu(file_menu)
-        tools_action.setMenu(tools_menu)
-        about_action.setMenu(about_menu)
+        file_menu = menubar.addMenu("File")
+        tools_menu = menubar.addMenu("Tools")
+        about_menu = menubar.addMenu("About")
 
         test_actions = [f"test_{i}" for i in range(5)]
         menus = [file_menu,tools_menu,about_menu]
 
         for m in menus:
             for label in test_actions:
-                action = m.addAction(f"{m.title()}_{label}")
-            #m.triggered.connect(print_label)        
+                m.addAction(f"{m.title()}_{label}")    
 
         layout.setMenuBar(menubar)
 
