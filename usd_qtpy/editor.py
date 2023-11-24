@@ -1,6 +1,7 @@
 import logging
+from functools import partial
 
-from qtpy import QtWidgets
+from qtpy import QtWidgets, QtCore
 
 from . import (
     prim_hierarchy,
@@ -16,9 +17,9 @@ except ImportError:
     logging.warning("Unable to import usdview dependencies, skipping view..")
     HAS_VIEWER = False
 
-
 class EditorWindow(QtWidgets.QDialog):
     """Example editor window containing the available components."""
+
     def __init__(self, stage, parent=None):
         super(EditorWindow, self).__init__(parent=parent)
 
@@ -27,26 +28,6 @@ class EditorWindow(QtWidgets.QDialog):
         layout = QtWidgets.QVBoxLayout(self)
         splitter = QtWidgets.QSplitter(self)
         layout.addWidget(splitter)
-
-        menubar = QtWidgets.QMenuBar()
-
-        def print_label(action : QtWidgets.QAction):
-            print(action.text())
-
-        menubar.triggered.connect(print_label)
-
-        file_menu = menubar.addMenu("File")
-        tools_menu = menubar.addMenu("Tools")
-        about_menu = menubar.addMenu("About")
-
-        test_actions = [f"test_{i}" for i in range(5)]
-        menus = [file_menu,tools_menu,about_menu]
-
-        for m in menus:
-            for label in test_actions:
-                m.addAction(f"{m.title()}_{label}")    
-
-        layout.setMenuBar(menubar)
 
         layer_tree_widget = layer_editor.LayerTreeWidget(
             stage=stage,
@@ -58,9 +39,45 @@ class EditorWindow(QtWidgets.QDialog):
         hierarchy_widget = prim_hierarchy.HierarchyWidget(stage=stage)
         splitter.addWidget(hierarchy_widget)
 
+        viewer_widget = None
         if HAS_VIEWER:
             viewer_widget = viewer.Widget(stage=stage)
             splitter.addWidget(viewer_widget)
 
         prim_spec_editor_widget = prim_spec_editor.SpecEditorWindow(stage=stage)
         splitter.addWidget(prim_spec_editor_widget)
+
+        # set up widgets to have a respective entry in Panels menu,
+        # and filter them out if they are ill-defined. 
+        self._panels = {
+            "Layer Editor": layer_tree_widget,
+            "Prim Hierarchy": hierarchy_widget,
+            "Scene Viewer" : viewer_widget,
+            "Prim Spec Editor": prim_spec_editor_widget
+        }
+        self._panels = {label : widget for label, widget in self._panels.items() if widget is not None}
+
+        self.build_menus()
+
+    def build_menus(self):
+        layout = self.layout()
+        
+        menubar = QtWidgets.QMenuBar()
+        layout.setMenuBar(menubar)
+
+        def sync_visible(menu : QtWidgets.QMenu):
+            print("abouttoshow")
+            for action in menu.actions():
+                widget = action.data()
+                action.setChecked(widget.isVisible())
+
+        panels_menu = menubar.addMenu("Panels")
+        # aboutToShow doesn't pass on anything about the menu, so we have to do a bind.
+        # This also the reason we don't have to check some state by default.
+        panels_menu.aboutToShow.connect(partial(sync_visible,panels_menu))
+
+        for label, widget in self._panels.items():
+            action = panels_menu.addAction(label)
+            action.setCheckable(True)
+            action.setData(widget)
+            action.toggled.connect(widget.setVisible)
