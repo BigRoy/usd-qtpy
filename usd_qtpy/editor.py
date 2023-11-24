@@ -1,7 +1,7 @@
 import logging
 from functools import partial
 
-from qtpy import QtWidgets, QtCore
+from qtpy import QtWidgets
 
 from . import (
     prim_hierarchy,
