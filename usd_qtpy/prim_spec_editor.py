@@ -368,7 +368,7 @@ class SpecEditsWidget(QtWidgets.QWidget):
 
         with Sdf.ChangeBlock():
             for spec in specs:
-                print(f"Removing spec: {spec.path}")
+                log.debug(f"Removing spec: %s", spec.path)
                 remove_spec(spec)
 
         if not self._listeners:

@@ -1,8 +1,7 @@
-
-
+import os
 import contextlib
-import os.path
 import logging
+from functools import partial
 
 from qtpy import QtWidgets, QtCore, QtGui
 
@@ -15,17 +14,56 @@ from .lib.qt import schedule, iter_model_rows
 log = logging.getLogger(__name__)
 
 
+def remove_sublayer(
+    identifier, parent
+):
+    """Remove a matching identifier as sublayer from parent layer
+    
+    The `identifier` may be the full path `layer.identifier` but can also
+    be the relative anchored sublayer path (the actual value in the usd file).
+    Hence, the sublayer paths *may* be relative paths even though a layer's
+    identifier passed in may be the full path.
+    
+    Arguments:
+        identifier (str): The layer identifier to remove; this may be the
+            anchored relative identifier in
+        parent (Sdf.Layer): The parent Sdf.Layer or layer 
+            identifier to remove the child identifier for.
+    
+    Returns:
+        Optional[int]: Returns an integer for the removed sublayer index
+            if a removal occurred, otherwise returns None
+    
+    """
+    absolute_identifier = parent.ComputeAbsolutePath(identifier)
+    for i, path in enumerate(parent.subLayerPaths):
+        if (
+            path == identifier
+            # Allow anchored relative paths to match the full identifier 
+            or parent.ComputeAbsolutePath(path) == absolute_identifier
+        ):
+            del parent.subLayerPaths[i]
+            return i
+
+
 def set_tips(widget, tip):
     widget.setStatusTip(tip)
     widget.setToolTip(tip)
 
 
 class LayerItem(TreeItem):
-    __slots__ = ('layer',)
+    __slots__ = ('layer', 'parent_layer')
 
-    def __init__(self, layer: Sdf.Layer):
-        super(LayerItem, self).__init__(key=layer.identifier)
+    def __init__(self, layer: Sdf.Layer, parent_layer: Sdf.Layer = None):
+        if parent_layer:
+            separator = "<--sublayer-->"
+            key = separator.join([parent_layer.identifier, layer.identifier])
+        else:
+            key = layer.identifier
+
+        super(LayerItem, self).__init__(key=key)
         self.layer = layer
+        self.parent_layer = parent_layer
 
 
 class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
@@ -87,7 +125,7 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
         )
 
     def supportedDropActions(self):
-        return QtCore.Qt.MoveAction
+        return QtCore.Qt.MoveAction | QtCore.Qt.CopyAction
 
     def mimeData(self, indexes):
         mimedata = QtCore.QMimeData()
@@ -116,15 +154,54 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
     def dropMimeData(self, data, action, row, column, parent):
         if action == QtCore.Qt.IgnoreAction:
             return True
-        if not data.hasFormat("text/plain"):
-            return False
         if column > 0:
             return False
 
+        new_parent_layer = parent.data(self.LayerRole)
+        if not new_parent_layer:
+            raise RuntimeError(
+                "Can't drop on index that does not refer to a layer"
+            )
+
+        # If urls are in the data we consider only those. These are usually
+        # URLs from file drops from e.g. OS file explorer or alike.
+        if data.hasUrls():
+            for url in reversed(data.urls()):
+                path = url.toLocalFile()
+                if not path:
+                    continue
+
+                if not os.path.isfile(path):
+                    # Ignore dropped folders
+                    continue
+
+                # We first try to find or open the layer so see if it's a valid
+                # file format that way
+                try:
+                    Sdf.Layer.FindOrOpen(path)
+                except Tf.ErrorException as exc:
+                    log.error("Unable to drop unsupported file: %s",
+                              path,
+                              exc_info=exc)
+                    continue
+
+                if row == -1:
+                    # Dropped on parent
+                    new_parent_layer.subLayerPaths.append(path)
+                else:
+                    # Dropped in-between other layers
+                    new_parent_layer.subLayerPaths.insert(row, path)
+            return True
+
+        if not data.hasFormat("text/plain"):
+            return False
+
+        # Consider plain text data second
+        # TODO: This is likely better represented as a custom byte stream
+        #   and as internal mimetype data to the model
         value = data.text()
         # Parse the text data
         separator = "<----"
-
         sources = []
         for line in value.split("\n"):
             if separator not in line:
@@ -142,25 +219,15 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
         with Sdf.ChangeBlock():
             for source_identifier, source_parent_identifier in sources:
 
-                removed_index = -1
+                removed_index = None
                 source_parent_layer = None
                 if source_parent_identifier:
-                    self.log.debug("Removing old: %s -> %s",
-                                   source_parent_identifier, source_identifier)
                     source_parent_layer = Sdf.Find(source_parent_identifier)
+                    removed_index = remove_sublayer(
+                        source_identifier, 
+                        parent=source_parent_layer
+                    )
 
-                    # The sublayer paths *may* be relative paths even though a
-                    # layer's identifier may be the full path. As such, we just
-                    # compare whether all resolved layers are actually the
-                    # same layer identifier or not
-                    for i, path in enumerate(source_parent_layer.subLayerPaths):
-                        path = source_parent_layer.ComputeAbsolutePath(path)
-                        if path == source_identifier:
-                            removed_index = i
-                            del source_parent_layer.subLayerPaths[i]
-                            break
-
-                new_parent_layer = parent.data(self.LayerRole)
                 if row < 0 and column < 0:
                     # Dropped on parent, add dropped layer as child
                     new_parent_layer.subLayerPaths.append(source_identifier)
@@ -173,7 +240,7 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
                     if (
                         source_parent_layer
                         and source_parent_layer.identifier == new_parent_layer.identifier  # noqa
-                        and removed_index != -1 and row >= removed_index
+                        and removed_index is not None and row >= removed_index
                     ):
                         row -= 1
 
@@ -182,7 +249,7 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
         return True
 
     def mimeTypes(self):
-        return ["text/plain"]
+        return ["text/plain", "text/uri-list"]
 
     def canDropMimeData(self, data, action, row, column, parent) -> bool:
 
@@ -197,7 +264,7 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
                                                             column,
                                                             parent)
 
-        # endregion
+    # endregion
 
     # region Custom methods
     def layer_count(self):
@@ -283,7 +350,8 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
                 return
 
             def add_layer(layer: Sdf.Layer, parent=None):
-                layer_item = LayerItem(layer)
+                parent_layer = parent.layer if parent else None
+                layer_item = LayerItem(layer, parent_layer=parent_layer)
                 item_tree.add_items(layer_item, parent=parent)
 
                 for sublayer_path in layer.subLayerPaths:
@@ -311,6 +379,7 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
         # rebuilding the layer list then at all actually. But we need the
         # signal otherwise we can't detect layers added/removed to begin with.
         schedule(self.refresh, 50, channel="layerschanged")
+    # endregion
 
 
 class LayerWidget(QtWidgets.QWidget):
@@ -444,8 +513,8 @@ class LayerWidget(QtWidgets.QWidget):
         # TODO: Perform an actual save
         # TODO: Prompt for filepath if layer is anonymous?
         # TODO: Allow making filepath relative to parent layer?
-        print(f"Saving: {layer}")
-        print(layer.ExportToString())
+        log.debug(f"Saving: {layer}")
+        log.debug(layer.ExportToString())
         layer.Save()
         # TODO: Do not update using this but base it off of signals from
         #  Sdf.Notice.LayerDidSaveLayerToFile
@@ -461,7 +530,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
         view = QtWidgets.QTreeView()
         view.setModel(model)
 
-        view.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
+        view.setDragDropMode(QtWidgets.QAbstractItemView.DragDrop)
         view.setDragDropOverwriteMode(False)
         view.setColumnHidden(1, True)
         view.setHeaderHidden(True)
@@ -486,9 +555,9 @@ class LayerTreeWidget(QtWidgets.QWidget):
     def on_view_context_menu(self, point):
         """Generate a right mouse click context menu for the layer view"""
 
-        point_index = self.view.indexAt(point)
+        index = self.view.indexAt(point)
         stage = self.model._stage
-        layer = point_index.data(self.model.LayerRole)
+        layer = index.data(self.model.LayerRole)
         if not layer:
             layer = stage.GetRootLayer()
 
@@ -498,6 +567,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
         action.setToolTip(
             "Add a new sublayer under the selected parent layer."
         )
+        action.triggered.connect(partial(self.on_add_layer, index))
 
         if layer:
             action = menu.addAction("Reload")
@@ -519,13 +589,14 @@ class LayerTreeWidget(QtWidgets.QWidget):
                     "Removes the layer from the layer stack. "
                     "Does not remove files from disk"
                 )
+                action.triggered.connect(partial(self.on_remove_layer, index))
 
             action = menu.addAction("Show as text")
             action.setToolTip(
                 "Shows the layer as USD ASCII"
             )
 
-            def show_layer():
+            def show_layer_as_text():
                 text_edit = QtWidgets.QTextEdit(parent=self)
                 text_edit.setPlainText(layer.ExportToString())
                 text_edit.setWindowTitle(layer.identifier)
@@ -533,7 +604,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
                 text_edit.resize(700, 500)
                 text_edit.show()
 
-            action.triggered.connect(show_layer)
+            action.triggered.connect(show_layer_as_text)
 
         menu.exec_(self.view.mapToGlobal(point))
 
@@ -546,7 +617,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
         for row in iter_model_rows(self.model, column=0):
             layer = row.data(self.model.LayerRole)
             if layer is None:
-                print(f"Layer is None for {row}")
+                log.warning(f"Layer is None for %s", row)
                 continue
             widget = LayerWidget(layer=layer,
                                  stage=self.model._stage,
@@ -570,6 +641,38 @@ class LayerTreeWidget(QtWidgets.QWidget):
             widget.edit_target.blockSignals(True)
             widget.edit_target.setChecked(layer == widget.layer)
             widget.edit_target.blockSignals(False)
+            
+    def on_remove_layer(self, index):
+        parent_index = self.model.parent(index)
+        
+        layer = index.data(LayerStackModel.LayerRole)
+        parent_layer = parent_index.data(LayerStackModel.LayerRole)
+        if not layer or not parent_layer:
+            return
+
+        removed_index = remove_sublayer(layer.identifier, parent=parent_layer)
+        if removed_index is not None:
+            log.debug(f"Removed layer: {layer.identifier}")
+
+    def on_add_layer(self, index):
+        layer = index.data(LayerStackModel.LayerRole)
+        if not layer:
+            return
+
+        filenames, _selected_filter = QtWidgets.QFileDialog.getOpenFileNames(
+            parent=self,
+            caption="Sublayer USD file",
+            filter="USD (*.usd *.usda *.usdc);"
+        )
+        if not filenames:
+            return
+
+        # TODO: Anchor path relative to the layer?
+        # TODO: Should we first confirm none of the layers is already a child
+        #  or just let it error once it hits one matching path?
+        for filename in filenames:
+            log.debug("Adding sublayer: %s", filename)
+            layer.subLayerPaths.append(filename)
 
     def hideEvent(self, event: QtGui.QCloseEvent) -> None:
         # TODO: This should be on a better event when we know the window
