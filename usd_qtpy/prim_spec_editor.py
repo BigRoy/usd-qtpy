@@ -6,6 +6,7 @@ from PySide2 import QtCore, QtWidgets, QtGui
 from .lib.qt import schedule
 from .lib.usd import remove_spec, LIST_ATTRS
 from .tree.simpletree import TreeModel, Item
+from .prim_type_icons import PrimTypeIconProvider
 
 
 log = logging.getLogger(__name__)
@@ -45,7 +46,6 @@ class StageSdfModel(TreeModel):
         super(StageSdfModel, self).__init__(parent)
         self._stage = stage
 
-        from .prim_hierarchy import PrimTypeIconProvider
         self._icon_provider = PrimTypeIconProvider()
 
     def setStage(self, stage):
