@@ -347,29 +347,7 @@ class View(QtWidgets.QTreeView):
             stage.DefinePrim(prim_path, type_name)
             model.endInsertRows()
 
-        if parent != root and parent.GetParent() == root:
-            # This prim is a primitive directly under root so can be an
-            # active prim
-            is_default_prim = default_prim.IsValid() and parent == default_prim
-            if is_default_prim:
-                label = "Clear default prim"
-                action = menu.addAction(label)
-                tip = (
-                    "Clear the default prim from the stage's root layer.\n"
-                    f"The current default prim is {default_prim.GetName()}"
-                )
-                action.setToolTip(tip)
-                action.setStatusTip(tip)
-                action.triggered.connect(partial(stage.ClearDefaultPrim))
-            else:
-                label = "Set as default prim"
-                action = menu.addAction(label)
-                tip = "Set prim as default prim on the stage's root layer."
-                action.setToolTip(tip)
-                action.setStatusTip(tip)
-                action.triggered.connect(partial(stage.SetDefaultPrim, parent))
-
-        # Some nice quick access types
+        # Create Prims
         create_prim_menu = menu.addMenu("Create Prim")
 
         create_prim_menu.addAction("Def")
@@ -398,6 +376,29 @@ class View(QtWidgets.QTreeView):
                 group_menu.addAction(type_name)
 
         create_prim_menu.triggered.connect(create_prim)
+
+        # Set and clear default prim
+        if parent != root and parent.GetParent() == root:
+            # This prim is a primitive directly under root so can be an
+            # active prim
+            is_default_prim = parent == default_prim
+            if is_default_prim:
+                label = "Clear default prim"
+                action = menu.addAction(label)
+                tip = (
+                    "Clear the default prim from the stage's root layer.\n"
+                    f"The current default prim is {default_prim.GetName()}"
+                )
+                action.setToolTip(tip)
+                action.setStatusTip(tip)
+                action.triggered.connect(partial(stage.ClearDefaultPrim))
+            else:
+                label = "Set as default prim"
+                action = menu.addAction(label)
+                tip = "Set prim as default prim on the stage's root layer."
+                action.setToolTip(tip)
+                action.setStatusTip(tip)
+                action.triggered.connect(partial(stage.SetDefaultPrim, parent))
 
         # Get mouse position
         global_pos = self.viewport().mapToGlobal(point)
