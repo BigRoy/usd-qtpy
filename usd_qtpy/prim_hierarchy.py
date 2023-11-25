@@ -1,5 +1,6 @@
 import logging
 import contextlib
+from functools import partial
 
 from qtpy import QtWidgets, QtCore
 from pxr import Usd, Sdf, Tf
@@ -317,8 +318,10 @@ class View(QtWidgets.QTreeView):
         stage = model.stage
 
         parent = index.internalPointer()
+        root = stage.GetPseudoRoot()
+        default_prim = stage.GetDefaultPrim()
         if not parent:
-            parent = stage.GetPseudoRoot()
+            parent = root
 
         menu = QtWidgets.QMenu(self)
 
@@ -344,33 +347,57 @@ class View(QtWidgets.QTreeView):
             stage.DefinePrim(prim_path, type_name)
             model.endInsertRows()
 
+        if parent != root and parent.GetParent() == root:
+            # This prim is a primitive directly under root so can be an
+            # active prim
+            is_default_prim = default_prim.IsValid() and parent == default_prim
+            if is_default_prim:
+                label = "Clear default prim"
+                action = menu.addAction(label)
+                tip = (
+                    "Clear the default prim from the stage's root layer.\n"
+                    f"The current default prim is {default_prim.GetName()}"
+                )
+                action.setToolTip(tip)
+                action.setStatusTip(tip)
+                action.triggered.connect(partial(stage.ClearDefaultPrim))
+            else:
+                label = "Set as default prim"
+                action = menu.addAction(label)
+                tip = "Set prim as default prim on the stage's root layer."
+                action.setToolTip(tip)
+                action.setStatusTip(tip)
+                action.triggered.connect(partial(stage.SetDefaultPrim, parent))
+
         # Some nice quick access types
-        menu.addAction("Def")
-        menu.addAction("Scope")
-        menu.addAction("Xform")
-        menu.addSeparator()
-        menu.addAction("Cone")
-        menu.addAction("Cube")
-        menu.addAction("Cylinder")
-        menu.addAction("Sphere")
-        menu.addSeparator()
-        menu.addAction("DistantLight")
-        menu.addAction("DomeLight")
-        menu.addAction("RectLight")
-        menu.addAction("SphereLight")
-        menu.addSeparator()
-        menu.addAction("Camera")
-        menu.addSeparator()
+        create_prim_menu = menu.addMenu("Create Prim")
+
+        create_prim_menu.addAction("Def")
+        create_prim_menu.addAction("Scope")
+        create_prim_menu.addAction("Xform")
+        create_prim_menu.addSeparator()
+        create_prim_menu.addAction("Cone")
+        create_prim_menu.addAction("Cube")
+        create_prim_menu.addAction("Cylinder")
+        create_prim_menu.addAction("Sphere")
+        create_prim_menu.addSeparator()
+        create_prim_menu.addAction("DistantLight")
+        create_prim_menu.addAction("DomeLight")
+        create_prim_menu.addAction("RectLight")
+        create_prim_menu.addAction("SphereLight")
+        create_prim_menu.addSeparator()
+        create_prim_menu.addAction("Camera")
+        create_prim_menu.addSeparator()
 
         # TODO: Cache this submenu?
         types_by_group = get_prim_types_by_group()
-        all_registered_menu = menu.addMenu("All Registered")
+        all_registered_menu = create_prim_menu.addMenu("All Registered")
         for group, types in types_by_group.items():
             group_menu = all_registered_menu.addMenu(group)
-            for t in types:
-                group_menu.addAction(t)
+            for type_name in types:
+                group_menu.addAction(type_name)
 
-        menu.triggered.connect(create_prim)
+        create_prim_menu.triggered.connect(create_prim)
 
         # Get mouse position
         global_pos = self.viewport().mapToGlobal(point)
