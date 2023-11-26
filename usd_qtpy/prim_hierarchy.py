@@ -518,6 +518,7 @@ class HierarchyWidget(QtWidgets.QDialog):
 
         self.setWindowTitle("USD Outliner")
         layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
 
         model = HierarchyModel(stage=stage)
         view = View()
