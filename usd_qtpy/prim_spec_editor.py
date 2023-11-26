@@ -234,20 +234,22 @@ class FilterListWidget(QtWidgets.QListWidget):
         super(FilterListWidget, self).__init__()
         self.addItems([
             "Layer",
-            "PseudoRootSpec",
+            # This is hidden since it's usually not filtered to
+            # "PseudoRootSpec",
             "PrimSpec",
+            "    reference",
+            "    payload",
+            "    variantSetName",
             "AttributeSpec",
             "RelationshipSpec",
             "VariantSetSpec",
 
             # PrimSpec changes
-            "variantSetName",
-            "reference",
-            "payload",
 
-            "variantSelections",
-            "variantSets",
-            "relocates"
+            # TODO: Still to be implemented in the StageSdfModel
+            # "variantSelections",
+            # "variantSets",
+            # "relocates"
         ])
         self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
@@ -279,7 +281,7 @@ class SpecEditorWindow(QtWidgets.QDialog):
 
     def _on_filter_selection_changed(self):
         items = self.filter_list.selectedItems()
-        types = {item.text() for item in items}
+        types = {item.text().strip() for item in items}
         self.editor.proxy.set_types_filter(types)
         self.editor.view.expandAll()
 
