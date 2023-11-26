@@ -38,20 +38,22 @@ class ListProxyItem(Item):
 
 class StageSdfModel(TreeModel):
     """Model listing a Stage's Layers and PrimSpecs"""
-    Columns = [
-        "name", "specifier", "typeName", "default", "type",
-        # "variantSelections", "variantSetNameList", "variantSets",
-        # "referenceList", "payloadList", "relocates"
-    ]
-
+    # TODO: Add support for
+    #   - "variantSelections",
+    #   - "variantSetNameList",
+    #   - "variantSets",
+    #   - "relocates"
+    Columns = ["name", "specifier", "typeName", "default", "type"]
     Colors = {
         "Layer": QtGui.QColor("#008EC5"),
         "PseudoRootSpec": QtGui.QColor("#A2D2EF"),
         "PrimSpec": QtGui.QColor("#A2D2EF"),
+        "VariantSetSpec": QtGui.QColor("#A2D2EF"),
         "RelationshipSpec": QtGui.QColor("#FCD057"),
         "AttributeSpec": QtGui.QColor("#FFC8DD"),
         "reference": QtGui.QColor("#C8DDDD"),
         "payload": QtGui.QColor("#DDC8DD"),
+        "variantSetName":  QtGui.QColor("#DDDDC8"),
     }
 
     def __init__(self, stage=None, parent=None):
@@ -85,7 +87,7 @@ class StageSdfModel(TreeModel):
             def _traverse(path):
                 spec = layer.GetObjectAtPath(path)
                 if not spec:
-                    # ignore target list binding entries
+                    # ignore target list binding entries or e.g. variantSetSpec
                     items_by_path[path] = Item({
                         "name": path.elementString,
                         "path": path,
@@ -137,7 +139,7 @@ class StageSdfModel(TreeModel):
                     #    spec_item.add_child(selection_item)
 
                     for key in [
-                        #"variantSetName",  # todo: these don't have `.assetPath`
+                        "variantSetName",
                         "reference",
                         "payload"
                     ]:
@@ -146,11 +148,19 @@ class StageSdfModel(TreeModel):
                             changes_for_type = getattr(list_changes,
                                                        change_type)
                             for change in changes_for_type:
+
+                                if hasattr(change, "assetPath"):
+                                    # Sdf.Reference and Sdf.Payload
+                                    name = change.assetPath
+                                else:
+                                    # variantSetName
+                                    name = str(change)
+
                                 list_change_item = ListProxyItem(
                                     proxy=changes_for_type,
                                     value=change,
                                     data={
-                                        "name": change.assetPath,
+                                        "name": name,
                                         # Strip off "Items"
                                         "default": change_type[:-5],
                                         "type": key,
@@ -228,6 +238,7 @@ class FilterListWidget(QtWidgets.QListWidget):
             "PrimSpec",
             "AttributeSpec",
             "RelationshipSpec",
+            "VariantSetSpec",
 
             # PrimSpec changes
             "variantSetName",

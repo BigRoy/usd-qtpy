@@ -223,5 +223,9 @@ def remove_spec(spec):
     elif isinstance(spec, Sdf.PropertySpec):
         # Relationship and Attribute specs
         del spec.owner.properties[spec.name]
+
+    elif isinstance(spec, Sdf.VariantSetSpec):
+        del spec.owner.variantSets[spec.name]
+
     else:
         raise TypeError(f"Unsupported spec type: {spec}")
