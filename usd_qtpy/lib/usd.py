@@ -141,20 +141,42 @@ def move_prim_spec(layer, src_prim_path, dest_prim_path):
 
     src_prim_path = Sdf.Path(src_prim_path)
     dest_prim_path = Sdf.Path(dest_prim_path)
+    if src_prim_path == dest_prim_path:
+        return
+
+    src_name = src_prim_path.name
     dest_parent = dest_prim_path.GetParentPath()
     dest_name = dest_prim_path.name
 
     with Sdf.ChangeBlock():
-        reparent_edit = Sdf.NamespaceEdit.ReparentAndRename(
-            src_prim_path,
-            dest_parent,
-            dest_name,
-            -1
-        )
+        if dest_parent == src_prim_path.GetParentPath():
+            # Rename, keep parent
+            edit = Sdf.NamespaceEdit.Rename(
+                src_prim_path,
+                dest_name
+            )
 
-        edit = Sdf.BatchNamespaceEdit()
-        edit.Add(reparent_edit)
-        if not layer.Apply(edit):
+        else:
+            if src_name == dest_name:
+                # Reparent, keep name
+                edit = Sdf.NamespaceEdit.Reparent(
+                    src_prim_path,
+                    dest_parent,
+                    -1
+                )
+
+            else:
+                # Reparent and rename
+                edit = Sdf.NamespaceEdit.ReparentAndRename(
+                    src_prim_path,
+                    dest_parent,
+                    dest_name,
+                    -1
+                )
+
+        batch_edit = Sdf.BatchNamespaceEdit()
+        batch_edit.Add(edit)
+        if not layer.Apply(batch_edit):
             logging.warning("Failed prim spec move: %s -> %s",
                             src_prim_path,
                             dest_prim_path)
