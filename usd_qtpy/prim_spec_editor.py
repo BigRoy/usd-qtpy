@@ -26,6 +26,16 @@ def shorten(s, width, placeholder="..."):
     return "{}{}".format(s[:width], placeholder)
 
 
+class ListProxyItem(Item):
+    def __init__(self, proxy, value, data):
+        super(ListProxyItem, self).__init__(data)
+        self._list_proxy = proxy
+        self._list_value = value
+
+    def delete(self):
+        self._list_proxy.remove(self._list_value)
+
+
 class StageSdfModel(TreeModel):
     """Model listing a Stage's Layers and PrimSpecs"""
     Columns = [
@@ -134,12 +144,17 @@ class StageSdfModel(TreeModel):
                             changes_for_type = getattr(list_changes,
                                                        change_type)
                             for change in changes_for_type:
-                                list_change_item = Item({
-                                    "name": change.assetPath,
-                                    # Strip off "Items"
-                                    "default": change_type[:-5],
-                                    "type": key
-                                })
+                                list_change_item = ListProxyItem(
+                                    proxy=changes_for_type,
+                                    value=change,
+                                    data={
+                                        "name": change.assetPath,
+                                        # Strip off "Items"
+                                        "default": change_type[:-5],
+                                        "type": key,
+                                        "parent": changes_for_type
+                                    }
+                                )
                                 spec_item.add_child(list_change_item)
                         if list_changes:
                             spec_item[key] = str(list_changes)
@@ -354,6 +369,7 @@ class SpecEditsWidget(QtWidgets.QWidget):
         selection_model = self.view.selectionModel()
         rows = selection_model.selectedRows()
         specs = []
+        deletables = []
         for row in rows:
             item = row.data(TreeModel.ItemRole)
             spec = item.get("spec")
@@ -362,14 +378,18 @@ class SpecEditsWidget(QtWidgets.QWidget):
 
             if spec:
                 specs.append(spec)
+            elif hasattr(item, "delete"):
+                deletables.append(item)
 
-        if not specs:
+        if not specs and not deletables:
             return
 
         with Sdf.ChangeBlock():
             for spec in specs:
                 log.debug(f"Removing spec: %s", spec.path)
                 remove_spec(spec)
+            for deletable in deletables:
+                deletable.delete()
 
         if not self._listeners:
             self.on_refresh()
