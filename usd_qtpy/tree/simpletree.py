@@ -46,7 +46,6 @@ class TreeModel(QtCore.QAbstractItemModel):
         if role == QtCore.Qt.DisplayRole:
             if section < len(self.Columns):
                 return self.Columns[section]
-        return
 
         return super(TreeModel, self).headerData(section, orientation, role)
 
