@@ -244,8 +244,6 @@ class FilterListWidget(QtWidgets.QListWidget):
             "RelationshipSpec",
             "VariantSetSpec",
 
-            # PrimSpec changes
-
             # TODO: Still to be implemented in the StageSdfModel
             # "variantSelections",
             # "variantSets",
@@ -261,7 +259,7 @@ class SpecEditorWindow(QtWidgets.QDialog):
         self.setWindowTitle("USD Layer Spec Editor")
 
         layout = QtWidgets.QVBoxLayout(self)
-        self.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 0, 0, 0)
         splitter = QtWidgets.QSplitter()
 
         filter_list = FilterListWidget()
