@@ -50,6 +50,8 @@ class StageSdfModel(TreeModel):
         "PrimSpec": QtGui.QColor("#A2D2EF"),
         "RelationshipSpec": QtGui.QColor("#FCD057"),
         "AttributeSpec": QtGui.QColor("#FFC8DD"),
+        "reference": QtGui.QColor("#C8DDDD"),
+        "payload": QtGui.QColor("#DDC8DD"),
     }
 
     def __init__(self, stage=None, parent=None):
@@ -152,6 +154,7 @@ class StageSdfModel(TreeModel):
                                         # Strip off "Items"
                                         "default": change_type[:-5],
                                         "type": key,
+                                        "typeName": key,
                                         "parent": changes_for_type
                                     }
                                 )
