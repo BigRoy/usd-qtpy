@@ -295,16 +295,21 @@ class HierarchyModel(QtCore.QAbstractItemModel):
             if prim == self.stage.GetDefaultPrim():
                 rects.append(
                     {"text": "DFT",
+                     "tooltip": "This prim is the default prim on "
+                                "the stage's root layer.",
                      "background-color": "#553333"}
                 )
             if prim.HasAuthoredPayloads() or prim.HasAuthoredReferences():
                 rects.append(
                     {"text": "REF",
+                     "tooltip": "This prim has one or more references "
+                                "and/or payloads.",
                      "background-color": "#333355"},
                 )
             if prim.HasVariantSets():
                 rects.append(
                     {"text": "VAR",
+                     "tooltip": "One or more variant sets exist on this prim.",
                      "background-color": "#335533"},
                 )
 

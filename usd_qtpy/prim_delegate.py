@@ -93,3 +93,26 @@ class DrawRectsDelegate(QtWidgets.QStyledItemDelegate):
                                                           model,
                                                           option,
                                                           index)
+
+    def helpEvent(self,
+                  event: QtGui.QHelpEvent,
+                  view: QtWidgets.QAbstractItemView,
+                  option: QtWidgets.QStyleOptionViewItem,
+                  index: QtCore.QModelIndex) -> bool:
+        if event.type() == QtCore.QEvent.ToolTip:
+
+            blocks = index.data(self.RectDataRole) or []
+            for block_data, block_rect in zip(blocks, self.iter_rects(blocks,
+                                                                      option)):
+                if block_rect.contains(event.pos()):
+                    QtWidgets.QToolTip.showText(
+                        event.globalPos(),
+                        block_data.get("tooltip", ""),
+                        view
+                    )
+                    return True
+
+        return super(DrawRectsDelegate, self).helpEvent(event,
+                                                        view,
+                                                        option,
+                                                        index)
