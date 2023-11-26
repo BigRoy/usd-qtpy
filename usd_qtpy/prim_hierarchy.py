@@ -455,18 +455,28 @@ class View(QtWidgets.QTreeView):
         # Allow referencing / payloads / variants management
         if parent != root:
 
-            def _add_reference(prim):
+            def _add_reference(prim, as_payload=False):
                 filenames, _filter = QtWidgets.QFileDialog.getOpenFileNames(
                     parent=self,
                     caption="Sublayer USD file",
                     filter="USD (*.usd *.usda *.usdc);"
                 )
-                references = prim.GetReferences()
-                for filename in filenames:
-                    references.AddReference(filename)
+                if not filenames:
+                    return
+
+                if as_payload:
+                    payloads = prim.GetPayloads()
+                    for filename in filenames:
+                        payloads.AddPayload(filename)
+                else:
+                    references = prim.GetReferences()
+                    for filename in filenames:
+                        references.AddReference(filename)
 
             action = menu.addAction("Add reference")
-            action.triggered.connect(partial(_add_reference, parent))
+            action.triggered.connect(partial(_add_reference, parent, False))
+            action = menu.addAction("Add payload")
+            action.triggered.connect(partial(_add_reference, parent, True))
 
             def _add_variant_set(prim):
                 # Prompt for a variant set name (and maybe directly allow
