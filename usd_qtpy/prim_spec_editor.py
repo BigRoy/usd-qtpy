@@ -342,7 +342,12 @@ class SpecEditsWidget(QtWidgets.QWidget):
         view.setIndentation(10)
         view.setIconSize(QtCore.QSize(20, 20))
         view.setStyleSheet(
-            "QTreeView::item { height: 20px; padding: 0px; margin: 1px 5px 1px 5px; }")
+            "QTreeView::item {"
+            "   height: 20px;"
+            "   padding: 1px 5px 1px 5px;"
+            "   margin: 0px;"
+            "}"
+        )
         view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         view.setUniformRowHeights(True)
         view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
