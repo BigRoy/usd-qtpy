@@ -53,6 +53,27 @@ def camera_from_view(stage : Usd.Stage, stageview : Union[StageView, CustomStage
     """ Catches a stage view whether it'd be from the custom viewer or from the baseclass and calls the export to stage function."""
     stageview.ExportFreeCameraToStage(stage,name)
 
+def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : int, 
+                    camera : UsdGeom.Camera = None, renderer : str = None, complexity = UsdAppUtils.complexityArgs.RefinementComplexities.HIGH): 
+    from pxr.UsdAppUtils.framesArgs import FrameSpecIterator, ConvertFramePlaceholderToFloatSpec
 
-def renderPlayblast(stage : Usd.Stage, width : int, height : int): 
-    ...
+    # rectify pathname for use in .format with path.format(frame = timeCode.getValue())
+    if outputpath is not None:
+        if outputpath := ConvertFramePlaceholderToFloatSpec(outputpath) is None:
+            raise ValueError("Invalid filepath for rendering")
+
+
+    # TEMP: pick first found camera
+    if camera is None:
+        camera = next(findCameras(stage))
+
+    # Use Usds own frame specification parser
+    # The following are examples of valid FrameSpecs:
+    # 123 - 101:105 - 105:101 - 101:109x2 - 101:110x2 - 101:104x0.5
+    frame_iterator = FrameSpecIterator(frames)
+
+    if not frame_iterator:
+        frame_iterator = [Usd.TimeCode.EarliestTime()]
+
+    for timeCode in frame_iterator:
+        currentframe = outputpath.format(frame = timeCode.GetValue())
