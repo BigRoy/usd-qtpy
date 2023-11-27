@@ -454,6 +454,7 @@ class SpecEditsWidget(QtWidgets.QWidget):
             if spec:
                 specs.append(spec)
             elif hasattr(item, "delete"):
+                # MapProxyItem and ListProxyItem entries
                 deletables.append(item)
 
         if not specs and not deletables:
@@ -515,6 +516,9 @@ class SpecEditsWidget(QtWidgets.QWidget):
 
             top_specs.append(spec)
 
+        if not top_specs:
+            return
+
         # Now we need to create specs up to each top spec's path in the
         # target layer if these do not exist yet.
         for spec in top_specs:
@@ -525,8 +529,9 @@ class SpecEditsWidget(QtWidgets.QWidget):
                 Sdf.CreatePrimInLayer(target_layer, prim_path)
             Sdf.CopySpec(src_layer, spec.path, target_layer, spec.path)
 
-        selection_model = self.view.selectionModel()
-        rows = selection_model.selectedRows()
-        has_deleted = self.delete_indexes(rows)
-        if has_deleted and not self._listeners:
+        # Delete the specs on the original layer
+        for spec in top_specs:
+            remove_spec(spec)
+
+        if not self._listeners:
             self.on_refresh()
