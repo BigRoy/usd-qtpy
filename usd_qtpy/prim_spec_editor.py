@@ -373,12 +373,10 @@ class SpecEditsWidget(QtWidgets.QWidget):
 
     def on_context_menu(self, point):
 
-        selection_model = self.view.selectionModel()
-        rows = selection_model.selectedRows()
-
         menu = QtWidgets.QMenu(self.view)
 
-        menu.addAction("Delete")
+        action = menu.addAction("Delete")
+        action.triggered.connect(self.on_delete)
 
         move_menu = menu.addMenu("Move to layer")
 
