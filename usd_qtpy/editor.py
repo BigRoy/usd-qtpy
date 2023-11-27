@@ -1,5 +1,4 @@
 import logging
-from functools import partial
 
 from qtpy import QtWidgets
 
@@ -16,6 +15,7 @@ try:
 except ImportError:
     logging.warning("Unable to import usdview dependencies, skipping view..")
     HAS_VIEWER = False
+
 
 class EditorWindow(QtWidgets.QDialog):
     """Example editor window containing the available components."""
