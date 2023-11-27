@@ -2,6 +2,7 @@ import os
 import contextlib
 import logging
 from functools import partial
+from typing import List
 
 from qtpy import QtWidgets, QtCore, QtGui
 
@@ -53,18 +54,22 @@ def set_tips(widget, tip):
 
 
 class LayerItem(TreeItem):
-    __slots__ = ('layer', 'parent_layer')
+    __slots__ = ('layer', 'stack')
 
-    def __init__(self, layer: Sdf.Layer, parent_layer: Sdf.Layer = None):
-        if parent_layer:
-            separator = "<--sublayer-->"
-            key = separator.join([parent_layer.identifier, layer.identifier])
-        else:
-            key = layer.identifier
+    def __init__(self, layer: Sdf.Layer, parents: List[Sdf.Layer] = None):
+
+        # The key is the full layer stack (all parents) joined together
+        # by a unique separator so the layer identifier can uniquely appear
+        # anywhere on the layer stack
+        parents = parents or []
+        stack = list(parents)
+        stack.append(layer)
+        separator = "<--sublayer-->"
+        key = separator.join(stack_layer.identifier for stack_layer in stack)
 
         super(LayerItem, self).__init__(key=key)
         self.layer = layer
-        self.parent_layer = parent_layer
+        self.stack = stack
 
 
 class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
@@ -351,8 +356,8 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
                 return
 
             def add_layer(layer: Sdf.Layer, parent=None):
-                parent_layer = parent.layer if parent else None
-                layer_item = LayerItem(layer, parent_layer=parent_layer)
+                parent_layers = parent.stack if parent else None
+                layer_item = LayerItem(layer, parents=parent_layers)
                 item_tree.add_items(layer_item, parent=parent)
 
                 for sublayer_path in layer.subLayerPaths:
