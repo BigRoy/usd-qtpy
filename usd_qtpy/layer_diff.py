@@ -1,9 +1,43 @@
+import contextlib
 import difflib
 
 from qtpy import QtWidgets, QtCore
 from pxr import Sdf, Tf
 
 from .lib.qt import DifflibSyntaxHighlighter
+
+
+@contextlib.contextmanager
+def preserve_scroll(scroll_area):
+    """Preserve scrollbar positions by percentage after context."""
+    def get_percent(scrollbar):
+        value = scrollbar.value()
+        minimum = scrollbar.minimum()
+        maximum = scrollbar.maximum()
+        if value <= minimum:
+            return 0
+        if value >= maximum:
+            return 1
+        if minimum == maximum:
+            return 0
+        return (value - minimum) / (maximum - minimum)
+
+    def set_percent(scrollbar, percent):
+        minimum = scrollbar.minimum()
+        maximum = scrollbar.maximum()
+        value = minimum + ((maximum - minimum) * percent)
+        scrollbar.setValue(value)
+
+    horizontal = scroll_area.horizontalScrollBar()
+    h_percent = get_percent(horizontal)
+    vertical = scroll_area.verticalScrollBar()
+    v_percent = get_percent(vertical)
+    try:
+        yield
+    finally:
+        print(h_percent, v_percent)
+        set_percent(horizontal, h_percent)
+        set_percent(vertical, v_percent)
 
 
 class LayerDiffWidget(QtWidgets.QDialog):
@@ -27,6 +61,7 @@ class LayerDiffWidget(QtWidgets.QDialog):
 
         # Force monospace font for readability
         text_edit.setStyleSheet('* { font-family: "Courier"; }')
+        text_edit.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
         highlighter = DifflibSyntaxHighlighter(text_edit)
         text_edit.setPlaceholderText("Layers match - no difference detected.")
 
@@ -59,16 +94,18 @@ class LayerDiffWidget(QtWidgets.QDialog):
         a_ascii = layer_a.ExportToString()
         b_ascii = layer_b.ExportToString()
 
-        # Print diff
-        self._text_edit.clear()
-        for line in difflib.unified_diff(
+        generator = difflib.unified_diff(
             a_ascii.splitlines(),
             b_ascii.splitlines(),
             fromfile=self._layer_a_label or f"{layer_a.identifier} (A)",
             tofile=self._layer_b_label or f"{layer_b.identifier} (B)",
             lineterm=""
-        ):
-            self._text_edit.insertPlainText(f"{line}\n")
+        )
+
+        with preserve_scroll(self._text_edit):
+            self._text_edit.clear()
+            for line in generator:
+                self._text_edit.insertPlainText(f"{line}\n")
 
     def on_layers_changed(self, notice, sender):
         # TODO: We could also cache the ASCII of the USD files so that on
