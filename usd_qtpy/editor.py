@@ -1,6 +1,6 @@
 import logging
 
-from qtpy import QtWidgets
+from qtpy import QtWidgets, QtCore
 
 from . import (
     prim_hierarchy,
@@ -23,6 +23,11 @@ class EditorWindow(QtWidgets.QDialog):
         super(EditorWindow, self).__init__(parent=parent)
 
         self.setWindowTitle("USD Editor")
+
+        self.setWindowFlags(
+            self.windowFlags() |
+            QtCore.Qt.WindowMinMaxButtonsHint
+        )
 
         layout = QtWidgets.QVBoxLayout(self)
         splitter = QtWidgets.QSplitter(self)
