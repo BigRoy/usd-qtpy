@@ -1,6 +1,6 @@
 import logging
 
-from PySide2 import QtCore
+from qtpy import QtCore
 
 log = logging.getLogger(__name__)
 
