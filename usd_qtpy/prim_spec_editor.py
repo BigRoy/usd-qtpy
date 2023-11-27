@@ -3,7 +3,7 @@ import logging
 from pxr import Usd, Tf, Sdf
 from PySide2 import QtCore, QtWidgets, QtGui
 
-from .lib.qt import schedule
+from .lib.qt import schedule, report_error
 from .lib.usd import remove_spec, LIST_ATTRS
 from .tree.simpletree import TreeModel, Item
 from .prim_type_icons import PrimTypeIconProvider
@@ -36,6 +36,25 @@ class ListProxyItem(Item):
         self._list_proxy.remove(self._list_value)
 
 
+class MapProxyItem(Item):
+    """Item for entries inheriting from Sdf.MapEditProxy.
+
+    These are:
+    - Sdf.PrimSpec.variantSets
+    - Sdf.PrimSpec.variantSelections
+    - Sdf.PrimSpec.relocates
+
+    """
+    def __init__(self, proxy, key, data):
+        super(MapProxyItem, self).__init__(data)
+        self._key = key
+        self._proxy = proxy
+
+    def delete(self):
+        # Delete the key from the parent proxy view
+        del self._proxy[self._key]
+
+
 class StageSdfModel(TreeModel):
     """Model listing a Stage's Layers and PrimSpecs"""
     # TODO: Add support for
@@ -65,6 +84,7 @@ class StageSdfModel(TreeModel):
     def setStage(self, stage):
         self._stage = stage
 
+    @report_error
     def refresh(self):
         self.clear()
 
@@ -127,16 +147,35 @@ class StageSdfModel(TreeModel):
                     type_name = spec.typeName
                     spec_item["typeName"] = type_name
 
-                    # TODO: Implement some good UX for variants, references,
-                    #  payloads and relocates
-                    # "variantSelections",
-                    # "variantSets",
-                    # for variant_selection in spec.variantSelections:
-                    #    selection_item = Item({
-                    #        "name": "TEST",
-                    #        "type": "variantSelection"
-                    #    })
-                    #    spec_item.add_child(selection_item)
+                    for attr in [
+                        "variantSelections",
+                        "relocates",
+                        # Variant sets is redundant because these basically
+                        # refer to VariantSetSpecs which will actually be
+                        # traversed path in the layer anyway
+                        # TODO: Remove this commented key?
+                        # "variantSets"
+                    ]:
+                        proxy = getattr(spec, attr)
+
+                        # `prim_spec.variantSelections.keys()` can fail
+                        # todo: figure out why this workaround is needed
+                        try:
+                            keys = list(proxy.keys())
+                        except RuntimeError:
+                            continue
+
+                        for key in keys:
+                            proxy_item = MapProxyItem(
+                                key=key,
+                                proxy=proxy,
+                                data={
+                                    "name": key,
+                                    "default": proxy.get(key),  # value
+                                    "type": attr
+                                }
+                            )
+                            spec_item.add_child(proxy_item)
 
                     for key in [
                         "variantSetName",
