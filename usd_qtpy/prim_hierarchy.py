@@ -362,16 +362,17 @@ class ReferenceListWidget(QtWidgets.QDialog):
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(QtWidgets.QLabel("References"))
         references = QtWidgets.QVBoxLayout()
+        references.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(references)
 
         layout.addWidget(QtWidgets.QLabel("Payloads"))
         payloads = QtWidgets.QVBoxLayout()
+        payloads.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(payloads)
 
         self.prim = prim
         self.references = references
         self.payloads = payloads
-        self._widgets = []
 
         self.refresh()
 
@@ -401,14 +402,22 @@ class ReferenceListWidget(QtWidgets.QDialog):
         for reference in references:
             # Add widget
             widget = RefPayloadWidget(asset_path=reference.assetPath)
-            self._widgets.append(widget)
             self.references.addWidget(widget)
+
+        add_button = QtWidgets.QPushButton("+")
+        add_button.setMaximumWidth(50)
+
+        self.references.addWidget(add_button)
 
         for payload in payloads:
             # Add widget
             widget = RefPayloadWidget(asset_path=payload.assetPath)
-            self._widgets.append(widget)
             self.payloads.addWidget(widget)
+
+        add_button = QtWidgets.QPushButton("+")
+        add_button.setMaximumWidth(50)
+
+        self.payloads.addWidget(add_button)
 
 
 class CreateVariantSetDialog(QtWidgets.QDialog):
