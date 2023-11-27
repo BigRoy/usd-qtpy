@@ -55,29 +55,35 @@ class EditorWindow(QtWidgets.QDialog):
             "Scene Viewer" : viewer_widget,
             "Prim Spec Editor": prim_spec_editor_widget
         }
-        self._panels = {label : widget for label, widget in self._panels.items() if widget is not None}
+        self._panels = {
+            label : widget for label, widget
+            in self._panels.items() if widget is not None
+        }
 
-        self.build_menus()
+        self.build_menubar()
 
-    def build_menus(self):
-        layout = self.layout()
-        
+    def build_menubar(self):
+
         menubar = QtWidgets.QMenuBar()
-        layout.setMenuBar(menubar)
-
-        def sync_visible(menu : QtWidgets.QMenu):
-            print("abouttoshow")
-            for action in menu.actions():
-                widget = action.data()
-                action.setChecked(widget.isVisible())
 
         panels_menu = menubar.addMenu("Panels")
-        # aboutToShow doesn't pass on anything about the menu, so we have to do a bind.
-        # This also the reason we don't have to check some state by default.
-        panels_menu.aboutToShow.connect(partial(sync_visible,panels_menu))
-
         for label, widget in self._panels.items():
             action = panels_menu.addAction(label)
             action.setCheckable(True)
             action.setData(widget)
             action.toggled.connect(widget.setVisible)
+
+        def update_panel_checkstate():
+            """Ensure checked state matches current visibility of panel"""
+            for action in panels_menu.actions():
+                widget = action.data()
+                visible = widget.isVisible()
+                if visible != action.isChecked():
+                    action.blockSignals(True)
+                    action.setChecked(visible)
+                    action.blockSignals(False)
+
+        panels_menu.aboutToShow.connect(update_panel_checkstate)
+
+        layout = self.layout()
+        layout.setMenuBar(menubar)
