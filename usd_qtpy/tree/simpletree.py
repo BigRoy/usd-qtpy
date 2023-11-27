@@ -53,6 +53,10 @@ class TreeModel(QtCore.QAbstractItemModel):
         flags = QtCore.Qt.ItemIsEnabled
 
         item = index.internalPointer()
+        if item is None:
+            log.warning("No item found for index: %s", index)
+            return flags
+
         if item.get("enabled", True):
             flags |= QtCore.Qt.ItemIsSelectable
 
