@@ -17,7 +17,7 @@ except ImportError:
     HAS_VIEWER = False
 
 
-class EditorWindow(QtWidgets.QDialog):
+class EditorWindow(QtWidgets.QWidget):
     """Example editor window containing the available components."""
 
     def __init__(self, stage, parent=None):
@@ -27,7 +27,7 @@ class EditorWindow(QtWidgets.QDialog):
 
         self.setWindowFlags(
             self.windowFlags() |
-            QtCore.Qt.WindowMinMaxButtonsHint
+            QtCore.Qt.Dialog
         )
 
         layout = QtWidgets.QVBoxLayout(self)
