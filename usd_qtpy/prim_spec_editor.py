@@ -306,6 +306,8 @@ class SpecEditsWidget(QtWidgets.QWidget):
             "QTreeView::item { height: 20px; padding: 0px; margin: 1px 5px 1px 5px; }")
         view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         view.setUniformRowHeights(True)
+        view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        view.customContextMenuRequested.connect(self.on_context_menu)
 
         auto_refresh = QtWidgets.QCheckBox("Auto Refresh on Stage Changes")
         auto_refresh.setChecked(True)
@@ -369,6 +371,30 @@ class SpecEditsWidget(QtWidgets.QWidget):
         # Remove any callbacks if they exist
         self.set_refresh_on_changes(False)
 
+    def on_context_menu(self, point):
+
+        selection_model = self.view.selectionModel()
+        rows = selection_model.selectedRows()
+
+        menu = QtWidgets.QMenu(self.view)
+
+        menu.addAction("Delete")
+
+        move_menu = menu.addMenu("Move to layer")
+
+        stage = self.model._stage
+        for layer in stage.GetLayerStack():
+            action = move_menu.addAction(layer.GetDisplayName())
+            action.setData(layer)
+
+        def move_to(action):
+            layer = action.data()
+            self.move_selection_to_layer(layer)
+
+        move_menu.triggered.connect(move_to)
+
+        menu.exec_(self.view.mapToGlobal(point))
+
     def on_refresh(self):
         self.model.refresh()
         self.proxy.invalidate()
@@ -379,13 +405,11 @@ class SpecEditsWidget(QtWidgets.QWidget):
         self.view.resizeColumnToContents(3)
         self.view.resizeColumnToContents(4)
 
-    def on_delete(self):
-        selection_model = self.view.selectionModel()
-        rows = selection_model.selectedRows()
+    def delete_indexes(self, indexes):
         specs = []
         deletables = []
-        for row in rows:
-            item = row.data(TreeModel.ItemRole)
+        for index in indexes:
+            item = index.data(TreeModel.ItemRole)
             spec = item.get("spec")
             if item.get("type") == "PseudoRootSpec":
                 continue
@@ -396,7 +420,7 @@ class SpecEditsWidget(QtWidgets.QWidget):
                 deletables.append(item)
 
         if not specs and not deletables:
-            return
+            return False
 
         with Sdf.ChangeBlock():
             for spec in specs:
@@ -404,6 +428,68 @@ class SpecEditsWidget(QtWidgets.QWidget):
                 remove_spec(spec)
             for deletable in deletables:
                 deletable.delete()
+        return True
 
-        if not self._listeners:
+    def on_delete(self):
+
+        selection_model = self.view.selectionModel()
+        rows = selection_model.selectedRows()
+        has_deleted = self.delete_indexes(rows)
+        if has_deleted and not self._listeners:
+            self.on_refresh()
+
+    def move_selection_to_layer(self, target_layer):
+        """Move Sdf.Spec to another Sdf.Layer
+
+        Note: If moved to a PrimSpec path already existing in the target layer
+        then any opinions on that PrimSpec or it children are removed. It
+        replaces the prim spec. It does not merge into an existing PrimSpec.
+
+        """
+
+        selection_model = self.view.selectionModel()
+        rows = selection_model.selectedRows()
+
+        specs = []
+        for index in rows:
+            item = index.data(TreeModel.ItemRole)
+            spec = item.get("spec")
+            if item.get("type") == "PseudoRootSpec":
+                continue
+
+            if spec:
+                specs.append(spec)
+
+        # Get highest paths in the spec selection and exclude any selected
+        # children since those will be moved along anyway
+        paths = {spec.path.pathString for spec in specs}
+        top_specs = []
+        for spec in specs:
+
+            skip = False
+            parent_path = spec.path.pathString.rsplit("/", 1)[0]
+            while "/" in parent_path:
+                if parent_path in paths:
+                    skip = True
+                    break
+                parent_path = parent_path.rsplit("/", 1)[0]
+            if skip:
+                continue
+
+            top_specs.append(spec)
+
+        # Now we need to create specs up to each top spec's path in the
+        # target layer if these do not exist yet.
+        for spec in top_specs:
+            src_layer = spec.layer
+
+            prim_path = spec.path.GetPrimPath()
+            if not target_layer.GetPrimAtPath(prim_path):
+                Sdf.CreatePrimInLayer(target_layer, prim_path)
+            Sdf.CopySpec(src_layer, spec.path, target_layer, spec.path)
+
+        selection_model = self.view.selectionModel()
+        rows = selection_model.selectedRows()
+        has_deleted = self.delete_indexes(rows)
+        if has_deleted and not self._listeners:
             self.on_refresh()
