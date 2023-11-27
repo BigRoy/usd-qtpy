@@ -27,6 +27,14 @@ def shorten(s, width, placeholder="..."):
 
 
 class ListProxyItem(Item):
+    """Item for entries inheriting from Sdf ListProxy types.
+
+    These are:
+    - Sdf.PrimSpec.variantSetNameList
+    - Sdf.PrimSpec.referenceList
+    - Sdf.PrimSpec.payloadList
+
+    """
     def __init__(self, proxy, value, data):
         super(ListProxyItem, self).__init__(data)
         self._list_proxy = proxy
