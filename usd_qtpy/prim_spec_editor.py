@@ -63,6 +63,19 @@ class MapProxyItem(Item):
         del self._proxy[self._key]
 
 
+class SpecifierDelegate(QtWidgets.QStyledItemDelegate):
+    """Delegate for "specifier" key to allow editing via combobox"""
+
+    def createEditor(self, parent, option, index):
+        editor = QtWidgets.QComboBox(parent)
+        editor.addItems(list(SPECIFIER_LABEL.values()))
+        return editor
+
+    def setEditorData(self, editor, index):
+        value = index.data(QtCore.Qt.EditRole)
+        editor.setCurrentText(value)
+
+
 class StageSdfModel(TreeModel):
     """Model listing a Stage's Layers and PrimSpecs"""
     # TODO: Add support for
@@ -232,6 +245,33 @@ class StageSdfModel(TreeModel):
                 parent_item = items_by_path.get(parent, layer_item)
                 parent_item.add_child(item)
 
+    def flags(self, index):
+
+        if index.column() == 1:  # specifier
+            item = index.internalPointer()
+            spec = item.get("spec")
+            # Match only exact PrimSpec type; we do not want PseudoRootSpec
+            if spec and type(spec) is Sdf.PrimSpec:
+                return (
+                    QtCore.Qt.ItemIsEnabled |
+                    QtCore.Qt.ItemIsSelectable |
+                    QtCore.Qt.ItemIsEditable
+                )
+
+        return super(StageSdfModel, self).flags(index)
+
+    def setData(self, index, value, role):
+
+        if index.column() == 1:  # specifier
+            item = index.internalPointer()
+            spec = item.get("spec")
+            if spec and isinstance(spec, Sdf.PrimSpec):
+                lookup = {
+                    label: key for key, label in SPECIFIER_LABEL.items()
+                }
+                value = lookup[value]
+                spec.specifier = value
+
     def data(self, index, role):
 
         if role == QtCore.Qt.ForegroundRole:
@@ -356,6 +396,8 @@ class SpecEditsWidget(QtWidgets.QWidget):
             "   margin: 0px;"
             "}"
         )
+        specifier_delegate = SpecifierDelegate(self)
+        view.setItemDelegateForColumn(1, specifier_delegate)
         view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         view.setUniformRowHeights(True)
         view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
@@ -377,6 +419,7 @@ class SpecEditsWidget(QtWidgets.QWidget):
         self.model = model
         self.proxy = proxy
         self.view = view
+        self._specifier_delegate = specifier_delegate
 
         auto_refresh.stateChanged.connect(self.set_refresh_on_changes)
         refresh.clicked.connect(self.on_refresh)

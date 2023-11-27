@@ -27,7 +27,7 @@ class TreeModel(QtCore.QAbstractItemModel):
         if not index.isValid():
             return None
 
-        if role == QtCore.Qt.DisplayRole:
+        if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
             item = index.internalPointer()
             column = index.column()
 
