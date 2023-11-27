@@ -360,15 +360,6 @@ class View(QtWidgets.QTreeView):
         self._delegate.rect_clicked.connect(self.on_prim_tag_clicked)
 
     def on_context_menu(self, point):
-        """Shows menu with loader actions on Right-click.
-
-        Registered actions are filtered by selection and help of
-        `loaders_from_representation` from avalon api. Intersection of actions
-        is shown when more subset is selected. When there are not available
-        actions for selected subsets then special action is shown (works as
-        info message to user): "*No compatible loaders for your selection"
-
-        """
         index = self.indexAt(point)
 
         model = self.model()
