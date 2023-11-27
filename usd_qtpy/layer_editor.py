@@ -289,15 +289,15 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
             return
 
         self._stage = stage
+        self.refresh()
 
-        if self._listeners:
-            self.log.debug("Revoking Tf.Notice listeners: %s", self._listeners)
-            # Tf.Notice.Revoke(self._listeners)
-            for listener in self._listeners:
-                listener.Revoke()
-
-        self._listeners.clear()
+    def register_listeners(self):
+        stage = self._stage
         if stage and stage.GetPseudoRoot():
+            if self._listeners:
+                # Remove any existing listeners
+                self.revoke_listeners()
+
             self.log.debug("Adding Tf.Notice Listeners..")
             # Listen to changes
             self._listeners.append(Tf.Notice.Register(
@@ -332,7 +332,14 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
             #     self.on_layers_changed,
             # ))
 
-        self.refresh()
+    def revoke_listeners(self):
+        if self._listeners:
+            self.log.debug("Revoking Tf.Notice listeners: %s", self._listeners)
+            # Tf.Notice.Revoke(self._listeners)
+            for listener in self._listeners:
+                listener.Revoke()
+
+        self._listeners.clear()
 
     @contextlib.contextmanager
     def reset_context(self):
@@ -698,9 +705,11 @@ class LayerTreeWidget(QtWidgets.QWidget):
             log.debug("Adding sublayer: %s", filename)
             layer.subLayerPaths.append(filename)
 
+    def showEvent(self, event):
+        self.model.register_listeners()
+
     def hideEvent(self, event: QtGui.QCloseEvent) -> None:
         # TODO: This should be on a better event when we know the window
         #   will be gone and unused after. The `closeEvent` doesn't seem
         #   to trigger by default on closing a parent dialog?
-        log.debug("Clearing stage connection..")
-        self.model.set_stage(None)  # clear listeners on close
+        self.model.revoke_listeners()
