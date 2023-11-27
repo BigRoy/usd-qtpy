@@ -36,7 +36,7 @@ def get_prim_types_by_group() -> dict:
     """
 
     plug_reg = Plug.Registry()
-    schema_reg = Usd.SchemaRegistry()
+    schema_reg = Usd.SchemaRegistry
 
     # Get schema types by plug-in group
     types_by_group = defaultdict(list)
