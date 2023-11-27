@@ -25,8 +25,6 @@ class DrawRectsDelegate(QtWidgets.QStyledItemDelegate):
     def iter_rects(self, blocks, option):
         """Yield each QRect used for drawing"""
 
-        # For the first column we want to paint in the state
-        # of default prim, variants and references/payloads
         rect = QtCore.QRect(option.rect)
         padding_topbottom = 2
         padding_sides = 4
@@ -45,9 +43,6 @@ class DrawRectsDelegate(QtWidgets.QStyledItemDelegate):
     def paint(self, painter, option, index):
 
         super(DrawRectsDelegate, self).paint(painter, option, index)
-
-        if index.column() != 0:
-            return
 
         corner_radius = 5
         painter.setRenderHint(QtGui.QPainter.Antialiasing)

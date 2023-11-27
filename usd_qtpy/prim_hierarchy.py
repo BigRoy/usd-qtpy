@@ -356,7 +356,7 @@ class View(QtWidgets.QTreeView):
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self.on_context_menu)
         self._delegate = DrawRectsDelegate(parent=self)
-        self.setItemDelegate(self._delegate)
+        self.setItemDelegateForColumn(0, self._delegate)
         self._delegate.rect_clicked.connect(self.on_prim_tag_clicked)
 
     def on_context_menu(self, point):
