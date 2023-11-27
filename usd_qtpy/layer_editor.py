@@ -599,6 +599,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
 
             def show_layer_as_text():
                 text_edit = QtWidgets.QTextEdit(parent=self)
+                text_edit.setStyleSheet('* { font-family: "Courier"; }')
                 text_edit.setPlainText(layer.ExportToString())
                 text_edit.setWindowTitle(layer.identifier)
                 text_edit.setWindowFlags(QtCore.Qt.Dialog)
