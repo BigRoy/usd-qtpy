@@ -317,6 +317,100 @@ class HierarchyModel(QtCore.QAbstractItemModel):
     # endregion
 
 
+class RefPayloadWidget(QtWidgets.QWidget):
+    def __init__(self, asset_path=None, parent=None):
+        super(RefPayloadWidget, self).__init__(parent=parent)
+
+        layout = QtWidgets.QHBoxLayout(self)
+
+        filepath = QtWidgets.QLineEdit()
+        filepath.setMinimumWidth(400)
+        browser = QtWidgets.QPushButton("Browse")
+        default_prim_label = QtWidgets.QLabel("     Prim:")
+        auto_prim = QtWidgets.QCheckBox("auto")
+        auto_prim.setToolTip(
+            "When enabled the default prim defined in the USD file will be "
+            "used.\nIf the USD file defines no default prim the first prim "
+            "will be used instead.\n"
+            "When disabled, a default prim can be explicitly set in the field "
+            "to the right."
+        )
+        default_prim = QtWidgets.QLineEdit()
+        default_prim.setPlaceholderText("Fallback to <auto>")
+        pick_default_prim = QtWidgets.QPushButton("Pick default prim")
+        remove = QtWidgets.QPushButton("Delete")
+
+        if asset_path:
+            filepath.setText(asset_path)
+
+        layout.addWidget(filepath)
+        layout.addWidget(browser)
+        layout.addWidget(default_prim_label)
+        layout.addWidget(auto_prim)
+        layout.addWidget(default_prim)
+        layout.addWidget(pick_default_prim)
+        layout.addWidget(remove)
+
+
+class ReferenceListWidget(QtWidgets.QDialog):
+    """Manage lists of references/payloads for a single prim"""
+    def __init__(self, prim, parent=None):
+        super(ReferenceListWidget, self).__init__(parent=parent)
+
+        self.setWindowTitle("USD Reference/Payload Editor")
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(QtWidgets.QLabel("References"))
+        references = QtWidgets.QVBoxLayout()
+        layout.addLayout(references)
+
+        layout.addWidget(QtWidgets.QLabel("Payloads"))
+        payloads = QtWidgets.QVBoxLayout()
+        layout.addLayout(payloads)
+
+        self.prim = prim
+        self.references = references
+        self.payloads = payloads
+        self._widgets = []
+
+        self.refresh()
+
+    def refresh(self):
+
+        def clear(layout):
+            while layout.takeAt(0):
+                pass
+
+        clear(self.payloads)
+        clear(self.references)
+
+        # Store items and widgets for the references
+        prim = self.prim
+
+        stack = prim.GetPrimStack()
+
+        references = []
+        payloads = []
+
+        for prim_spec in stack:
+            for reference in prim_spec.referenceList.GetAppliedItems():
+                references.append(reference)
+            for payload in prim_spec.payloadList.GetAppliedItems():
+                payloads.append(payload)
+
+        for reference in references:
+            # Add widget
+            widget = RefPayloadWidget(asset_path=reference.assetPath)
+            self._widgets.append(widget)
+            self.references.addWidget(widget)
+
+        for payload in payloads:
+            # Add widget
+            widget = RefPayloadWidget(asset_path=payload.assetPath)
+            self._widgets.append(widget)
+            self.payloads.addWidget(widget)
+
+
 class CreateVariantSetDialog(QtWidgets.QDialog):
     """Prompt for variant set name"""
     def __init__(self, parent=None):
@@ -493,14 +587,30 @@ class View(QtWidgets.QTreeView):
         global_pos = self.viewport().mapToGlobal(point)
         menu.exec_(global_pos)
 
-    def on_prim_tag_clicked(self, index, text):
-        print(index.data())
+    def on_prim_tag_clicked(self, event, index, block):
+        text = block.get("text")
         if text == "DFT":
-            print("DFT YES")
+            # Allow to clear the prim from a menu
+            model = self.model()
+            stage = model.stage
+            menu = QtWidgets.QMenu(parent=self)
+            action = menu.addAction("Clear default prim")
+            tip = (
+                "Clear the default prim from the stage's root layer.\n"
+            )
+            action.setToolTip(tip)
+            action.setStatusTip(tip)
+            action.triggered.connect(partial(stage.ClearDefaultPrim))
+            point = event.position().toPoint()
+            menu.exec_(self.mapToGlobal(point))
+
         elif text == "REF":
-            print("REF YES")
+            prim = index.internalPointer()
+            widget = ReferenceListWidget(prim=prim, parent=self)
+            widget.show()
+
         elif text == "VAR":
-            print("VAR YES")
+            raise NotImplementedError("To be implemented")
 
 
 class HierarchyWidget(QtWidgets.QDialog):

@@ -20,7 +20,7 @@ class DrawRectsDelegate(QtWidgets.QStyledItemDelegate):
 
     RectDataRole = QtCore.Qt.UserRole + 1001
 
-    rect_clicked = QtCore.Signal(QtCore.QModelIndex, str)
+    rect_clicked = QtCore.Signal(QtCore.QEvent, QtCore.QModelIndex, dict)
 
     def iter_rects(self, blocks, option):
         """Yield each QRect used for drawing"""
@@ -71,6 +71,7 @@ class DrawRectsDelegate(QtWidgets.QStyledItemDelegate):
     def editorEvent(self, event, model, option, index):
         if (
                 isinstance(event, QtGui.QMouseEvent)
+                and event.type() == QtCore.QEvent.MouseButtonPress
                 and event.button() == QtCore.Qt.LeftButton
         ):
             blocks = index.data(self.RectDataRole) or []
@@ -79,8 +80,7 @@ class DrawRectsDelegate(QtWidgets.QStyledItemDelegate):
                 for block, rect in zip(blocks,
                                        self.iter_rects(blocks, option)):
                     if rect.contains(point):
-                        text = block.get("text", "")
-                        self.rect_clicked.emit(index, text)
+                        self.rect_clicked.emit(event, index, block)
                         event.accept()
                         return
 
