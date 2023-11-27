@@ -23,11 +23,13 @@ def main():
     from pxr import Usd  # noqa
     from qtpy import QtWidgets  # noqa
     from usd_qtpy.editor import EditorWindow  # noqa
+    from usd_qtpy.style import load_stylesheet
 
     stage = Usd.Stage.Open(filepath)
     app = QtWidgets.QApplication()
     dialog = EditorWindow(stage=stage)
-    dialog.resize(600, 600)
+    dialog.resize(1200, 600)
+    dialog.setStyleSheet(load_stylesheet())
     dialog.show()
     app.exec_()
 
