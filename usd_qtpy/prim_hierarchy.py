@@ -362,7 +362,10 @@ class ReferenceListWidget(QtWidgets.QDialog):
     def __init__(self, prim, parent=None):
         super(ReferenceListWidget, self).__init__(parent=parent)
 
-        self.setWindowTitle("USD Reference/Payload Editor")
+        title = "USD Reference/Payload Editor"
+        if prim and prim.IsValid():
+            title = f"{title}: {prim.GetPath().pathString}"
+        self.setWindowTitle(title)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(QtWidgets.QLabel("References"))
