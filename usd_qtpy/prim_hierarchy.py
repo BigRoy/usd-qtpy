@@ -7,33 +7,7 @@ from .lib.usd import get_prim_types_by_group
 from .prim_delegate import DrawRectsDelegate
 from .prim_hierarchy_model import HierarchyModel
 from .references import ReferenceListWidget
-
-
-class CreateVariantSetDialog(QtWidgets.QDialog):
-    """Prompt for variant set name"""
-    def __init__(self, parent=None):
-        super(CreateVariantSetDialog, self).__init__(parent=parent)
-
-        self.setWindowTitle("Create Variant Set")
-
-        form = QtWidgets.QFormLayout(self)
-
-        name = QtWidgets.QLineEdit()
-        form.addRow(QtWidgets.QLabel("Variant Set Name:"), name)
-
-        # Add some standard buttons (Cancel/Ok) at the bottom of the dialog
-        buttons = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok |
-            QtWidgets.QDialogButtonBox.Cancel,
-            QtCore.Qt.Horizontal,
-            self
-        )
-        form.addRow(buttons)
-
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-
-        self.name = name
+from .variants import CreateVariantSetDialog
 
 
 class View(QtWidgets.QTreeView):
@@ -148,16 +122,14 @@ class View(QtWidgets.QTreeView):
             )
 
             def _add_variant_set(prim):
-                # Prompt for a variant set name (and maybe directly allow
-                # managing the individual variants from the same UI; and allow
-                # picking the default variant?)
-                prompt = CreateVariantSetDialog(parent=self)
-                if prompt.exec_() == QtWidgets.QDialog.Accepted:
-                    name = prompt.name.text()
-                    if name:
-                        # Create the variant set, even allowing to create it
-                        # without populating a variant name
-                        prim.GetVariantSets().AddVariantSet(name)
+                # TODO: maybe directly allow managing the individual variants
+                #  from the same UI; and allow setting the default variant
+                # Prompt for a variant set name
+                name = CreateVariantSetDialog.get_variant_set_name(parent=self)
+                if name is not None:
+                    # Create the variant set, even allowing to create it
+                    # without populating a variant name
+                    prim.GetVariantSets().AddVariantSet(name)
 
             action = menu.addAction("Create Variant Set")
             action.triggered.connect(partial(_add_variant_set, parent))
