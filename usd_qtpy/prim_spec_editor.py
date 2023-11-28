@@ -233,7 +233,13 @@ class StageSdfModel(TreeModel):
                             spec_item[key] = str(list_changes)
 
                 elif isinstance(spec, Sdf.AttributeSpec):
-                    spec_item["default"] = shorten(str(spec.default), 60)
+                    value = spec.default
+                    spec_item["default"] = shorten(str(value), 60)
+
+                    type_name = spec.roleName
+                    if not type_name and value is not None:
+                        type_name = type(value).__name__
+                    spec_item["typeName"] = type_name
 
                 items_by_path[path] = spec_item
 
