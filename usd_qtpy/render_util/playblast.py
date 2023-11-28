@@ -54,13 +54,27 @@ def camera_from_view(stage : Usd.Stage, stageview : Union[StageView, CustomStage
     stageview.ExportFreeCameraToStage(stage,name)
 
 def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : int, 
-                    camera : UsdGeom.Camera = None, renderer : str = None, complexity = UsdAppUtils.complexityArgs.RefinementComplexities.HIGH): 
+                    camera : UsdGeom.Camera = None, renderer : str = None, complexity : Union[str,int] = "High"): 
     from pxr.UsdAppUtils.framesArgs import FrameSpecIterator, ConvertFramePlaceholderToFloatSpec
+    from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
 
     # rectify pathname for use in .format with path.format(frame = timeCode.getValue())
     if outputpath is not None:
-        if outputpath := ConvertFramePlaceholderToFloatSpec(outputpath) is None:
+        if (outputpath := ConvertFramePlaceholderToFloatSpec(outputpath)) is None:
             raise ValueError("Invalid filepath for rendering")
+
+    # ensure right complexity object is picked.
+    if (complex_t := type(complexity)) is str:
+        # ensure key correctness
+        complexity = complexity.lower() # set all to lowercase
+        complexity = complexity.title() # Uppercase Each Word (In Case Of "Very High")
+        if complexity not in ["Low", "Medium", "High", "Very High"]:
+            raise ValueError(f"Value: {complexity} entered for complexity is not valid.")
+        
+        complex_level = Complex.fromName(complexity)
+    elif complex_t is int:
+        complexity = min(max(complexity,0),3) # clamp to range of 0-3, 4 elements
+        complex_level = Complex.ordered[complexity]
 
 
     # TEMP: pick first found camera
