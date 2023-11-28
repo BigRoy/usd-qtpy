@@ -1,11 +1,64 @@
+import os
 from collections import namedtuple, defaultdict
 from functools import partial
 
 from qtpy import QtWidgets, QtCore
-from pxr import Sdf
+from pxr import Sdf, Usd
 
 from .resources import get_icon
 from .lib.qt import DropFilesPushButton
+from .prim_hierarchy_model import HierarchyModel
+
+
+class PickPrimPath(QtWidgets.QDialog):
+
+    picked_path = QtCore.Signal(Sdf.Path)
+
+    def __init__(self, stage, prim_path, parent=None):
+        super(PickPrimPath, self).__init__(parent=parent)
+
+        layout = QtWidgets.QVBoxLayout(self)
+
+        model = HierarchyModel(stage=stage)
+        view = QtWidgets.QTreeView()
+        view.setModel(model)
+        view.setHeaderHidden(True)
+        view.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+
+        layout.addWidget(view)
+
+        if prim_path:
+            # Set selection to the given prim path if it exists
+            pass
+
+        # Add some standard buttons (Cancel/Ok) at the bottom of the dialog
+        buttons = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok |
+            QtWidgets.QDialogButtonBox.Cancel,
+            QtCore.Qt.Horizontal,
+            self
+        )
+        layout.addWidget(buttons)
+
+        self.model = model
+        self.view = view
+
+        view.doubleClicked.connect(self.accept)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        self.accepted.connect(self.on_accept)
+
+    def on_accept(self):
+        indexes = self.view.selectedIndexes()
+        if not indexes:
+            return
+
+        index = indexes[0]
+        prim = index.data(HierarchyModel.PrimRole)
+        if not prim:
+            return
+        path = prim.GetPath()
+        self.picked_path.emit(path)
 
 
 class RefPayloadWidget(QtWidgets.QWidget):
@@ -48,7 +101,7 @@ class RefPayloadWidget(QtWidgets.QWidget):
             "to the right."
         )
         default_prim = QtWidgets.QLineEdit()
-        default_prim.setPlaceholderText("Fallback to <auto>")
+        default_prim.setPlaceholderText("Pick prim path")
 
         pick_default_prim = QtWidgets.QPushButton(get_icon("edit-2"), "")
         pick_default_prim.setToolTip("Select default prim...")
@@ -57,14 +110,13 @@ class RefPayloadWidget(QtWidgets.QWidget):
 
         auto_prim.setChecked(True)
         default_prim.setEnabled(False)
-        pick_default_prim.setEnabled(False)
         if item:
             filepath.setText(item.assetPath)
             has_prim_path = bool(item.primPath)
             if has_prim_path:
                 auto_prim.setChecked(False)
                 default_prim.setEnabled(True)
-                pick_default_prim.setEnabled(True)
+                default_prim.setText(item.primPath)
 
         layout.addWidget(filepath)
         layout.addWidget(browser)
@@ -77,9 +129,37 @@ class RefPayloadWidget(QtWidgets.QWidget):
         self.filepath = filepath
         self.auto_prim = auto_prim
         self.default_prim = default_prim
+        self.pick_default_prim = pick_default_prim
 
+        auto_prim.stateChanged.connect(self.on_auto_prim_changed)
+        pick_default_prim.clicked.connect(self.on_pick_prim)
         browser.clicked.connect(self.on_browse)
         delete.clicked.connect(self.delete_requested)
+
+    def on_auto_prim_changed(self, state):
+        self.default_prim.setEnabled(not state)
+
+    def on_pick_prim(self):
+
+        filepath = self.filepath.text()
+        if not filepath:
+            raise ValueError("No file set")
+
+        prim_path = self.default_prim.text()
+
+        if not os.path.exists(filepath):
+            raise ValueError(f"File does not exist: {filepath}")
+
+        stage = Usd.Stage.Open(filepath)
+        picker = PickPrimPath(stage=stage, prim_path=prim_path, parent=self)
+
+        def on_picked(path):
+            if path:
+                self.default_prim.setText(path.pathString)
+                self.auto_prim.setChecked(False)
+
+        picker.picked_path.connect(on_picked)
+        picker.exec_()
 
     def on_browse(self):
         filename, _filter = QtWidgets.QFileDialog.getOpenFileName(
@@ -108,7 +188,11 @@ class RefPayloadWidget(QtWidgets.QWidget):
             # Preserve layer offset
             item_kwargs["layerOffset"] = self._original_item.layerOffset
 
-        default_prim = Sdf.Path(self.default_prim.text())
+        default_prim = Sdf.Path()
+        if not self.auto_prim.isChecked():
+            default_prim = Sdf.Path(self.default_prim.text())
+
+        print(default_prim)
 
         # Create a new instance of the same type as the current item value
         return self._item_type(
