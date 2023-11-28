@@ -116,7 +116,7 @@ class RefPayloadWidget(QtWidgets.QWidget):
             if has_prim_path:
                 auto_prim.setChecked(False)
                 default_prim.setEnabled(True)
-                default_prim.setText(item.primPath)
+                default_prim.setText(item.primPath.pathString)
 
         layout.addWidget(filepath)
         layout.addWidget(browser)
@@ -191,8 +191,6 @@ class RefPayloadWidget(QtWidgets.QWidget):
         default_prim = Sdf.Path()
         if not self.auto_prim.isChecked():
             default_prim = Sdf.Path(self.default_prim.text())
-
-        print(default_prim)
 
         # Create a new instance of the same type as the current item value
         return self._item_type(
