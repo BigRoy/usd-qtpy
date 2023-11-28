@@ -59,11 +59,9 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
     from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
 
     # rectify pathname for use in .format with path.format(frame = timeCode.getValue())
-    if outputpath:
-        if (outputpath := ConvertFramePlaceholderToFloatSpec(outputpath)) is None:
-            raise ValueError("Invalid filepath for rendering")
-    else:
-        raise ValueError("No filepath entered")
+    if not (outputpath := ConvertFramePlaceholderToFloatSpec(outputpath)):
+        raise ValueError("Invalid/Empty filepath for rendering")
+
 
     # ensure right complexity object is picked.
     if isinstance(complexity,str):
