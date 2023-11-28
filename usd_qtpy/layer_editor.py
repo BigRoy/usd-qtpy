@@ -12,6 +12,7 @@ from .tree.itemtree import ItemTree, TreeItem
 from .tree.base import AbstractTreeModelMixin
 from .lib.qt import schedule, iter_model_rows
 from .layer_diff import LayerDiffWidget
+from .resources import get_icon
 
 log = logging.getLogger(__name__)
 
@@ -418,24 +419,16 @@ class LayerWidget(QtWidgets.QWidget):
         # Identifier label as display name
         label = QtWidgets.QLabel("", parent=self)
 
-        resources = os.path.join(os.path.dirname(__file__),
-                                 "resources",
-                                 "feathericons")
-
         # Save changes button
-        save_icon = QtGui.QIcon(os.path.join(resources, "save.svg"))
-        save = QtWidgets.QPushButton(self)
+        save = QtWidgets.QPushButton(get_icon("save"), "", self)
         set_tips(
             save, "Save layer to disk"
         )
-        save.setIcon(save_icon)
         save.setFixedWidth(25)
         save.setFixedHeight(25)
 
         # Set edit target (active or not button)
-        edit_icon = QtGui.QIcon(os.path.join(resources, "edit-2.svg"))
-        edit_target_btn = QtWidgets.QPushButton(self)
-        edit_target_btn.setIcon(edit_icon)
+        edit_target_btn = QtWidgets.QPushButton(get_icon("edit-2"), "", self)
         edit_target_btn.setCheckable(True)
         set_tips(
             edit_target_btn,

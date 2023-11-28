@@ -1,6 +1,4 @@
-import os
-
-from qtpy import QtGui
+from .resources import get_icon
 
 
 class PrimTypeIconProvider:
@@ -13,9 +11,6 @@ class PrimTypeIconProvider:
 
     def __init__(self):
         self._type_to_icon = {}
-        self._root = os.path.join(os.path.dirname(__file__),
-                                  "resources",
-                                  "feathericons")
 
     def get_icon_from_type_name(self, type_name):
         if type_name in self._type_to_icon:
@@ -26,38 +21,37 @@ class PrimTypeIconProvider:
         #   instead of the exact type so that inherited types are also caught
         #   as material, light, etc.
         if type_name == "Scope":
-            name = "crosshair.svg"
+            name = "crosshair"
         elif type_name == "":
-            name = "help-circle.svg"
+            name = "help-circle"
         elif type_name == "Xform":
-            name = "move.svg"
+            name = "move"
         elif type_name == "Camera":
-            name = "video.svg"
+            name = "video"
         # Maybe use `prim.IsA(prim_type)` but preferably we can go based off
         # of only the type name so that cache makes sense for all types
         elif type_name in {"Material", "NodeGraph", "Shader"}:
-            name = "globe.svg"
+            name = "globe"
         elif type_name in {"Mesh",
                            "Capsule",
                            "Cone",
                            "Cube",
                            "Cylinder",
                            "Sphere"}:
-            name = "box.svg"
+            name = "box"
         elif type_name.endswith("Light"):
-            name = "sun.svg"
+            name = "sun"
         elif type_name.startswith("Render"):
-            name = "zap.svg"
+            name = "zap"
         elif type_name.startswith("Physics"):
-            name = "wind.svg"
+            name = "wind"
         else:
             name = None
 
         # Define icon
         icon = None
         if name:
-            path = os.path.join(self._root, name)
-            icon = QtGui.QIcon(path)
+            icon = get_icon(name)
 
         self._type_to_icon[type_name] = icon
         return icon

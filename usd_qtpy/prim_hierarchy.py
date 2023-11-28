@@ -5,6 +5,7 @@ from functools import partial
 from qtpy import QtWidgets, QtCore
 from pxr import Usd, Sdf, Tf
 
+from .resources import get_icon
 from .lib.qt import report_error
 from .lib.usd import get_prim_types_by_group, rename_prim
 from .prim_type_icons import PrimTypeIconProvider
@@ -325,7 +326,8 @@ class RefPayloadWidget(QtWidgets.QWidget):
 
         filepath = QtWidgets.QLineEdit()
         filepath.setMinimumWidth(400)
-        browser = QtWidgets.QPushButton("Browse")
+
+        browser = QtWidgets.QPushButton(get_icon("folder"), "")
         default_prim_label = QtWidgets.QLabel("     Prim:")
         auto_prim = QtWidgets.QCheckBox("auto")
         auto_prim.setToolTip(
@@ -337,8 +339,11 @@ class RefPayloadWidget(QtWidgets.QWidget):
         )
         default_prim = QtWidgets.QLineEdit()
         default_prim.setPlaceholderText("Fallback to <auto>")
-        pick_default_prim = QtWidgets.QPushButton("Pick default prim")
-        remove = QtWidgets.QPushButton("Delete")
+
+        pick_default_prim = QtWidgets.QPushButton(get_icon("edit-2"), "")
+        pick_default_prim.setToolTip("Select default prim...")
+        remove = QtWidgets.QPushButton(get_icon("x"), "")
+        remove.setToolTip("Delete")
 
         if asset_path:
             filepath.setText(asset_path)
@@ -404,8 +409,9 @@ class ReferenceListWidget(QtWidgets.QDialog):
             widget = RefPayloadWidget(asset_path=reference.assetPath)
             self.references.addWidget(widget)
 
-        add_button = QtWidgets.QPushButton("+")
-        add_button.setMaximumWidth(50)
+        add_icon = get_icon("plus")
+        add_button = QtWidgets.QPushButton(add_icon, "")
+        add_button.setToolTip("Add reference")
 
         self.references.addWidget(add_button)
 
@@ -414,8 +420,8 @@ class ReferenceListWidget(QtWidgets.QDialog):
             widget = RefPayloadWidget(asset_path=payload.assetPath)
             self.payloads.addWidget(widget)
 
-        add_button = QtWidgets.QPushButton("+")
-        add_button.setMaximumWidth(50)
+        add_button = QtWidgets.QPushButton(add_icon, "")
+        add_button.setToolTip("Add payload")
 
         self.payloads.addWidget(add_button)
 
