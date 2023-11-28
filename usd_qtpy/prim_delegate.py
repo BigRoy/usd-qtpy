@@ -68,7 +68,7 @@ class DrawRectsDelegate(QtWidgets.QStyledItemDelegate):
 
             painter.drawText(block_rect, QtCore.Qt.AlignCenter, text)
 
-    def editorEvent(self, event, model, option, index):
+    def editorEvent(self, event, model, option, index) -> bool:
         if (
                 isinstance(event, QtGui.QMouseEvent)
                 and event.type() == QtCore.QEvent.MouseButtonPress
@@ -82,7 +82,7 @@ class DrawRectsDelegate(QtWidgets.QStyledItemDelegate):
                     if rect.contains(point):
                         self.rect_clicked.emit(event, index, block)
                         event.accept()
-                        return
+                        return True
 
         return super(DrawRectsDelegate, self).editorEvent(event,
                                                           model,
