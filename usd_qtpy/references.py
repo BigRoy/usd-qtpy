@@ -1,3 +1,4 @@
+from collections import namedtuple, defaultdict
 from functools import partial
 
 from qtpy import QtWidgets, QtCore
@@ -239,7 +240,6 @@ class ReferenceListWidget(QtWidgets.QDialog):
         layout.addWidget(widget)
 
     def on_accept(self):
-        from collections import namedtuple, defaultdict
         Change = namedtuple("change", ["old", "new"])
 
         # Get the configured references/payloads
