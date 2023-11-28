@@ -23,7 +23,11 @@ class EditorWindow(QtWidgets.QWidget):
     def __init__(self, stage, parent=None):
         super(EditorWindow, self).__init__(parent=parent)
 
-        self.setWindowTitle("USD Editor")
+        title = "USD Editor"
+        if stage:
+            name = stage.GetRootLayer().GetDisplayName()
+            title = f"{title}: {name}"
+        self.setWindowTitle(title)
 
         self.setWindowFlags(
             self.windowFlags() |
