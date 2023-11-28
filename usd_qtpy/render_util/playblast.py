@@ -14,6 +14,7 @@ from viewer import CustomStageView
 from qtpy import QtWidgets, QtCore
 
 from typing import Union
+from collections.abc import Generator
 
 def _setupOGLWidget(width : int, height : int, samples : int = 4):
     """
@@ -49,33 +50,60 @@ def findCameras(stage : Usd.Stage, TraverseAll = True) -> list[UsdGeom.Camera]:
     cams = [c for c in gen if UsdGeom.Camera(c)]
     return cams
 
-def camera_from_view(stage : Usd.Stage, stageview : Union[StageView, CustomStageView], name : str = "playblastCam"):
+def cameraFromView_(stage : Usd.Stage, stageview : Union[StageView, CustomStageView], name : str = "playblastCam"):
     """ Catches a stage view whether it'd be from the custom viewer or from the baseclass and calls the export to stage function."""
     stageview.ExportFreeCameraToStage(stage,name)
 
+def getComplexityLevels():
+    """
+    Returns a generator that iterates through all registered complexity presets in UsdAppUtils.complexityArgs
+    """
+    from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
+    return (item.name for item in Complex.ordered)
+
+def getAllRenderEngineNames():
+    """
+    Returns a generator that will iterate through all names of Render Engine Plugin / Hydra Delegates
+    """
+    from pxr.UsdImagingGL import Engine as En
+    return (En.GetRendererDisplayName(pluginId) for pluginId in En.GetRendererPlugins())
+
+def checkRenderEngineName(enginestr : str) -> Union[str, None]:
+    plugnames = getAllRenderEngineNames()
+    if enginestr in plugnames:
+        return enginestr
+    return None
+
 def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : int, 
-                    camera : UsdGeom.Camera = None, renderer : str = None, complexity : Union[str,int] = "High"): 
+                    camera : UsdGeom.Camera = None, complexity : Union[str,int] = "High",
+                    renderer : str = "GL"): 
     from pxr.UsdAppUtils.framesArgs import FrameSpecIterator, ConvertFramePlaceholderToFloatSpec
     from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
 
-    # rectify pathname for use in .format with path.format(frame = timeCode.getValue())
+    # rectify pathname for use in .format with path.format(frame = timeCode.getValue())gi
     if not (outputpath := ConvertFramePlaceholderToFloatSpec(outputpath)):
         raise ValueError("Invalid/Empty filepath for rendering")
 
-
     # ensure right complexity object is picked.
+    # the internal _RefinementComplexity.value is used to set rendering quality
     if isinstance(complexity,str):
         # ensure key correctness
         complexity = complexity.lower() # set all to lowercase
         complexity = complexity.title() # Uppercase Each Word (In Case Of "Very High")
-        if complexity not in ["Low", "Medium", "High", "Very High"]:
-            raise ValueError(f"Value: {complexity} entered for complexity is not valid.")
+        preset_names = getComplexityLevels()
+        if complexity not in preset_names:
+            raise ValueError(f"Value: {complexity} entered for complexity is not valid")
         
         complex_level = Complex.fromName(complexity)
     elif isinstance(complexity,int):
         complexity = min(max(complexity,0),3) # clamp to range of 0-3, 4 elements
         complex_level = Complex.ordered[complexity]
 
+    complex_level = complex_level.value
+
+    # validate render engine
+    if not checkRenderEngineName(renderer):
+        raise ValueError(f"Render engine arguement invalid")
 
     # TEMP: pick first found camera
     if camera is None:
