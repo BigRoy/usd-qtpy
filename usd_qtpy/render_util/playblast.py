@@ -6,15 +6,15 @@
 
 from pxr import Usd, UsdGeom
 from pxr import UsdAppUtils
-from pxr import Tf
+from pxr import Tf, Sdf
 
 from pxr.Usdviewq.stageView import StageView
 from viewer import CustomStageView
 
-from qtpy import QtWidgets, QtCore
+from qtpy import QtCore
 
 from typing import Union
-from collections.abc import Generator
+import logging
 
 def _setupOGLWidget(width : int, height : int, samples : int = 4):
     """
@@ -54,6 +54,10 @@ def cameraFromView_(stage : Usd.Stage, stageview : Union[StageView, CustomStageV
     """ Catches a stage view whether it'd be from the custom viewer or from the baseclass and calls the export to stage function."""
     stageview.ExportFreeCameraToStage(stage,name)
 
+# Source: UsdAppUtils.colorArgs.py
+def getColorArgs():
+    return ("disabled","sRGB","openColorIO")
+
 def getComplexityLevels():
     """
     Returns a generator that iterates through all registered complexity presets in UsdAppUtils.complexityArgs
@@ -76,9 +80,10 @@ def checkRenderEngineName(enginestr : str) -> Union[str, None]:
 
 def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : int, 
                     camera : UsdGeom.Camera = None, complexity : Union[str,int] = "High",
-                    renderer : str = "GL"): 
+                    renderer : str = "GL", colormode : str = "sRGB"): 
     from pxr.UsdAppUtils.framesArgs import FrameSpecIterator, ConvertFramePlaceholderToFloatSpec
     from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
+    from pxr import UsdUtils
 
     # rectify pathname for use in .format with path.format(frame = timeCode.getValue())gi
     if not (outputpath := ConvertFramePlaceholderToFloatSpec(outputpath)):
@@ -106,8 +111,27 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
         raise ValueError(f"Render engine arguement invalid")
 
     # TEMP: pick first found camera
-    if camera is None:
-        camera = next(findCameras(stage))
+    if not camera:
+        camera = next(findCameras(stage), None)
+        if not camera:
+            # Same procedure as default for pxr.UsdAppUtils.cameraArgs.py
+            path = Sdf.Path(UsdUtils.GetPrimaryCameraName())
+            camera = UsdAppUtils.GetCameraAtPath(stage, path)
+
+    if colormode not in getColorArgs():
+        raise ValueError("Color correction mode specifier is invalid.")
+
+    # Set up OpenGL FBO to write to within Widget
+    # Actual size doesn't matter
+    _setupOGLWidget(1,1) 
+
+    # Create FrameRecorder
+    frameRecorder = UsdAppUtils.FrameRecorder()
+    frameRecorder.SetRendererPlugin(renderer)
+    frameRecorder.SetImageWidth(width) # Only width is needed, heigh will be computer from camera properties.
+    frameRecorder.SetComplexity(complex_level)
+    frameRecorder.SetColorCorrectionMode(colormode)
+    frameRecorder.SetIncludedPurposes(["default","render","proxy","guide"]) # set to all purposes for now.
 
     # Use Usds own frame specification parser
     # The following are examples of valid FrameSpecs:
@@ -119,3 +143,11 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
 
     for timeCode in frame_iterator:
         currentframe = outputpath.format(frame = timeCode.GetValue())
+        try:
+            frameRecorder.Record(stage, camera, timeCode, currentframe)
+        except Tf.ErrorException as e:
+            logging.error("Recording aborted due to the following failure at time code {0}: {1}".format(timeCode, str(e)))
+            break
+    
+    # Set reference to None so that it can be collected before Qt context.
+    frameRecorder = None
