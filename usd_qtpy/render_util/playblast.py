@@ -59,12 +59,14 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
     from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
 
     # rectify pathname for use in .format with path.format(frame = timeCode.getValue())
-    if outputpath is not None:
+    if outputpath:
         if (outputpath := ConvertFramePlaceholderToFloatSpec(outputpath)) is None:
             raise ValueError("Invalid filepath for rendering")
+    else:
+        raise ValueError("No filepath entered")
 
     # ensure right complexity object is picked.
-    if (complex_t := type(complexity)) is str:
+    if isinstance(complexity,str):
         # ensure key correctness
         complexity = complexity.lower() # set all to lowercase
         complexity = complexity.title() # Uppercase Each Word (In Case Of "Very High")
@@ -72,7 +74,7 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
             raise ValueError(f"Value: {complexity} entered for complexity is not valid.")
         
         complex_level = Complex.fromName(complexity)
-    elif complex_t is int:
+    elif isinstance(complexity,int):
         complexity = min(max(complexity,0),3) # clamp to range of 0-3, 4 elements
         complex_level = Complex.ordered[complexity]
 
