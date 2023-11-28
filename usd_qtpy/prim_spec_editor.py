@@ -5,6 +5,7 @@ from qtpy import QtCore, QtWidgets, QtGui
 
 from .lib.qt import schedule, report_error
 from .lib.usd import remove_spec, LIST_ATTRS
+from .lib.usd_merge_spec import copy_spec_merge
 from .tree.simpletree import TreeModel, Item
 from .prim_type_icons import PrimTypeIconProvider
 
@@ -589,7 +590,7 @@ class SpecEditsWidget(QtWidgets.QWidget):
             prim_path = spec.path.GetPrimPath()
             if not target_layer.GetPrimAtPath(prim_path):
                 Sdf.CreatePrimInLayer(target_layer, prim_path)
-            Sdf.CopySpec(src_layer, spec.path, target_layer, spec.path)
+            copy_spec_merge(src_layer, spec.path, target_layer, spec.path)
 
         # Delete the specs on the original layer
         for spec in top_specs:
