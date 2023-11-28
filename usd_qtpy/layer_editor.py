@@ -520,7 +520,6 @@ class LayerWidget(QtWidgets.QWidget):
         # TODO: Prompt for filepath if layer is anonymous?
         # TODO: Allow making filepath relative to parent layer?
         log.debug(f"Saving: {layer}")
-        log.debug(layer.ExportToString())
         layer.Save()
         # TODO: Do not update using this but base it off of signals from
         #  Sdf.Notice.LayerDidSaveLayerToFile
