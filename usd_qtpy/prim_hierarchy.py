@@ -31,7 +31,7 @@ class View(QtWidgets.QTreeView):
         model = self.model()
         stage = model.stage
 
-        parent = index.internalPointer()
+        parent = index.data(HierarchyModel.PrimRole)
         root = stage.GetPseudoRoot()
         default_prim = stage.GetDefaultPrim()
         if not parent:
@@ -140,6 +140,7 @@ class View(QtWidgets.QTreeView):
 
     def on_manage_prim_reference_payload(self, prim):
         widget = ReferenceListWidget(prim=prim, parent=self)
+        widget.resize(800, 300)
         widget.show()
 
     def on_prim_tag_clicked(self, event, index, block):
@@ -160,7 +161,7 @@ class View(QtWidgets.QTreeView):
             menu.exec_(self.mapToGlobal(point))
 
         elif text == "REF":
-            prim = index.internalPointer()
+            prim = index.data(HierarchyModel.PrimRole)
             self.on_manage_prim_reference_payload(prim)
 
         elif text == "VAR":

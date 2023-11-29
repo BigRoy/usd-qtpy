@@ -1,13 +1,15 @@
 import logging
 import contextlib
+from typing import Union, Optional
 
 from qtpy import QtCore
-from pxr import Usd, Tf
+from pxr import Usd, Sdf, Tf
 
 from .lib.qt import report_error
 from .lib.usd import rename_prim
 from .prim_type_icons import PrimTypeIconProvider
 from .prim_delegate import DrawRectsDelegate
+from .prim_hierarchy_cache import HierarchyCache, Proxy
 
 
 @contextlib.contextmanager
@@ -23,16 +25,42 @@ def layout_change_context(model):
 
 
 class HierarchyModel(QtCore.QAbstractItemModel):
+    """Base class for adapting a stage's prim hierarchy for Qt ItemViews
 
+    Most clients will want to use a configuration of the `HierachyStandardModel`
+    which has a standard set of columns and data or subclass this to provide
+    their own custom set of columns.
+
+    Clients are encouraged to subclass this module because it provides both
+    robust handling of change notification and an efficient lazy population.
+    This model listens for TfNotices and emits the appropriate Qt signals.
+    """
     PrimRole = QtCore.Qt.UserRole + 1
 
-    def __init__(self, stage, *args, **kwargs):
-        super(HierarchyModel, self).__init__(*args, **kwargs)
+    def __init__(
+        self,
+        stage: Usd.Stage=None,
+        predicate=Usd.TraverseInstanceProxies(Usd.PrimIsDefined |
+                                              ~Usd.PrimIsDefined),
+        parent=None,
+    ) -> None:
+        """Instantiate a QAbstractItemModel adapter for a UsdStage.
 
+        It's safe for the 'stage' to be None if the model needs to be
+        instantiated without knowing the stage its interacting with.
+
+        'predicate' specifies the prims that may be accessed via the model on
+        the stage. A good policy is to be as accepting of prims as possible
+        and rely on a QSortFilterProxyModel to interactively reduce the view.
+        Changing the predicate is a potentially expensive operation requiring
+        rebuilding internal caches, making not ideal for interactive filtering.
+        """
+        super(HierarchyModel, self).__init__(parent=parent)
+
+        self._predicate = predicate
         self._stage = None
-        self._listener = None
-        self._prims = {}
-        self._indices = {}
+        self._index: Union[None, HierarchyCache] = None
+        self._listeners = []
         self._icon_provider = PrimTypeIconProvider()
         self.log = logging.getLogger("HierarchyModel")
 
@@ -43,32 +71,60 @@ class HierarchyModel(QtCore.QAbstractItemModel):
     def stage(self):
         return self._stage
 
-    @property
-    def root(self):
-        # Quick access to pseudoroot of stage
-        return self._stage.GetPseudoRoot() if self._stage else None
+    @stage.setter
+    def stage(self, stage):
+        self.set_stage(stage)
 
-    def set_stage(self, value):
+    def set_stage(self, stage: Usd.Stage):
         """Resets the model for use with a new stage.
 
         If the stage isn't valid, this effectively becomes an empty model.
         """
-        if value == self._stage:
+        if stage == self._stage:
             return
 
-        self._stage = value
-        with self.reset_context():
-            is_valid_stage = bool(self._stage and self._stage.GetPseudoRoot())
-            if is_valid_stage:
-                # Listen to state changes of the stage to stay in sync
-                self._listener = Tf.Notice.Register(
-                    Usd.Notice.ObjectsChanged,
-                    self.on_objects_changed,
-                    self._stage
+        self.revoke_listeners()
+
+        self._stage = stage
+        with self.reset_model():
+            if self._is_stage_valid():
+                self._index = HierarchyCache(
+                    root=stage.GetPrimAtPath("/"),
+                    predicate=self._predicate
                 )
+                self.register_listeners()
+            else:
+                self._index = None
+
+    def _is_stage_valid(self):
+        return self._stage and self._stage.GetPseudoRoot()
+
+    def register_listeners(self):
+
+        if self._listeners:
+            # Do not allow to register more than once, clear old listeners
+            self.revoke_listeners()
+
+        if self._is_stage_valid():
+            # Listen to state changes of the stage to stay in sync
+            self._listeners.append(Tf.Notice.Register(
+                Usd.Notice.ObjectsChanged,
+                self.on_objects_changed,
+                self._stage
+            ))
+            self._listeners.append(Tf.Notice.Register(
+                Usd.Notice.LayerMutingChanged,
+                self.on_layer_muting_changed,
+                self._stage
+            ))
+
+    def revoke_listeners(self):
+        for listener in self._listeners:
+            listener.Revoke()
+        self._listeners.clear()
 
     @contextlib.contextmanager
-    def reset_context(self):
+    def reset_model(self):
         """Reset the model via context manager.
 
         During the context additional changes can be done before the reset
@@ -76,122 +132,91 @@ class HierarchyModel(QtCore.QAbstractItemModel):
         """
         self.beginResetModel()
         try:
-            self._indices.clear()
-            self._prims.clear()
-            self._listener = None
             yield
         finally:
             self.endResetModel()
 
     @report_error
+    def on_layer_muting_changed(self, notice, sender):
+        # TODO: Be more clever than full reset on layer mutes?
+        with self.reset_model():
+            # Reset from the root
+            self._index._invalidate_subtree(Sdf.Path("/"))
+            pass
+
+    @report_error
     def on_objects_changed(self, notice, sender):
-        """Update changes on TfNotice signal"""
         resynced_paths = notice.GetResyncedPaths()
-        resynced_paths = [path for path in resynced_paths if path.IsPrimPath()]
+        resynced_paths = {path for path in resynced_paths if path.IsPrimPath()}
 
         if not resynced_paths:
             return
 
-        self.log.debug("received changed prim signal: %s", resynced_paths)
+        # Include parents so we can use it as lookup for the "sibling" check
 
-        # For now do full reset since that seems less buggy than the manual
-        # method below.
-        # TODO: Fix sync object change
-        # TODO: Do not error on deactivating prims
-        with self.reset_context():
-            # Remove all persistent indexes
-            existing = self.persistentIndexList()
-            null = [QtCore.QModelIndex()] * len(existing)
-            self.changePersistentIndexList(existing, null)
-            return
+        resynced_paths.update(
+            path.GetParentPath() for path in list(resynced_paths)
+        )
 
-        with layout_change_context(self):
-            persistent_indices = self.persistentIndexList()
-            index_to_path = {}
-            for index in persistent_indices:
-                prim = index.internalPointer()
-                path = prim.GetPath()
+        if len(resynced_paths) > 0:
+            with layout_change_context(self):
+                persistent_indices = self.persistentIndexList()
+                index_to_path = {}
+                for index in persistent_indices:
+                    index_prim = index.internalPointer().get_prim()
+                    index_path = index_prim.GetPath()
 
-                for resynced_path in resynced_paths:
-                    common_path = resynced_path.GetCommonPrefix(path)
-                    # if the paths are siblings or if the
-                    # index path is a child of resynced path, you need to
-                    # update any persistent indices
-                    are_siblings = (
-                            common_path == resynced_path.GetParentPath()
-                            and common_path != path
-                    )
-                    index_is_child = (common_path == resynced_path)
+                    if (
+                            index_path in resynced_paths
+                            or index_path.GetParentPath() in resynced_paths
+                    ):
+                        index_to_path[index] = index_path
 
-                    if are_siblings or index_is_child:
-                        index_to_path[index] = path
+                self._index.resync_subtrees(resynced_paths)
 
-            from_indices = []
-            to_indices = []
-            for index, path in index_to_path.items():
-                new_prim = self.stage.GetPrimAtPath(path)
-                if new_prim.IsValid():
-                    # Update existing index
-                    self.log.debug("update: update %s to new prim: %s",
-                                   path,
-                                   new_prim)
-                    new_row = self._prim_to_row_index(new_prim)
-                    if index.row() != new_row:
-                        self.remove_path_cache(path)
-                        for i in range(self.columnCount(QtCore.QModelIndex())):
-                            from_indices.append(index)
-                            to_indices.append(self.createIndex(
-                                new_row, index.column(), new_prim)
-                            )
-                else:
-                    # Removed index
-                    self.log.debug("update: removing path index: %s", path)
-                    from_indices.append(index)
-                    to_indices.append(QtCore.QModelIndex())
-            self.changePersistentIndexList(from_indices, to_indices)
+                from_indices = []
+                to_indices = []
+                for index in index_to_path:
+                    path = index_to_path[index]
 
-            self.log.debug("Current cache: %s", self._indices)
+                    if path in self._index:
+                        new_proxy = self._index.get_proxy(path)
+                        new_row = self._index.get_row(new_proxy)
 
-    def remove_path_cache(self, path):
-        """Remove Sdf.Path cache entry from internal reference"""
-        path_str = path.pathString
-        self._indices.pop(path_str)
-        self._prims.pop(path_str)
+                        if index.row() != new_row:
+                            for _i in range(
+                                self.columnCount(QtCore.QModelIndex())
+                            ):
+                                from_indices.append(index)
+                                to_indices.append(self.createIndex(
+                                    new_row, index.column(), new_proxy)
+                                )
+                    else:
+                        from_indices.append(index)
+                        to_indices.append(QtCore.QModelIndex())
+                self.changePersistentIndexList(from_indices, to_indices)
 
-    def _prim_to_row_index(self, prim):
-        """Return the row index for Usd.Prim under its parent"""
+    def _prim_to_row_index(self,
+                           path: Sdf.Path) -> Optional[QtCore.QModelIndex]:
+        """Given a path, retrieve the appropriate model index."""
+        if path in self._index:
+            proxy = self._index[path]
+            row = self._index.get_row(proxy)
+            return self.createIndex(row, 0, proxy)
 
-        if not prim.IsValid():
-            return 0
+    def _index_to_prim(self,
+                       model_index: QtCore.QModelIndex) -> Optional[Usd.Prim]:
+        """Retrieve the prim for the input model index
 
-        # Find the index of prim under the parent
-        if prim.IsPseudoRoot():
-            return 0
-        else:
-            # TODO: Optimize this!
-            parent = prim.GetParent()
-            prim_path = prim.GetPath()
-            children = list(parent.GetAllChildren())
-            for i, child_prim in enumerate(children):
-                if child_prim.GetPath() == prim_path:
-                    return i
+        External clients should use `UsdQt.roles.HierarchyPrimRole` to access
+        the prim for an index.
+        """
+        if model_index.isValid():
+            proxy = model_index.internalPointer()  # -> Proxy
+            if type(proxy) is Proxy:
+                return proxy.get_prim()
 
     # region Qt methods
-    def createIndex(self, row, column, id):
-        # We need to keep a reference to the prim otherwise it'll get
-        # garbage collected - because `createIndex` does not hold a counted
-        # reference to the object. So we do it ourselves, returning existing
-        # created indices if the `id` matches a previous iteration. Is this ok?
-        prim = id
-        path = prim.GetPath().pathString
-        if path in self._indices:
-            return self._indices[path]
-        self._prims[path] = prim
-
-        index = super(HierarchyModel, self).createIndex(row, column, prim)
-        self._indices[path] = index
-        return index
-
     def flags(self, index):
         # Make name editable
         if index.column() == 0:
@@ -206,7 +231,7 @@ class HierarchyModel(QtCore.QAbstractItemModel):
         if role == QtCore.Qt.EditRole:
             if index.column() == 0:
                 # Rename prim
-                prim = index.internalPointer()
+                prim = self._index_to_prim(index)
                 if not value:
                     # Keep original name
                     return False
@@ -220,79 +245,79 @@ class HierarchyModel(QtCore.QAbstractItemModel):
         return 1
 
     def rowCount(self, parent):
+        if not self._is_stage_valid():
+            return 0
+
         if parent.column() > 0:
             return 0
 
         if not parent.isValid():
-            # Return amount of children for root item
-            return len(self.root.GetAllChildren())
+            return 1
 
-        prim = parent.internalPointer()
-        if not prim or not prim.IsValid():
-            self.log.error("Parent prim not found for row count: %s", parent)
-            return 0
-
-        return len(list(prim.GetAllChildren()))
+        parent_proxy = parent.internalPointer()
+        return self._index.get_child_count(parent_proxy)
 
     def index(self, row, column, parent):
+        if not self._is_stage_valid():
+            return QtCore.QModelIndex()
 
         if not self.hasIndex(row, column, parent):
+            self.log.debug("Index does not exist: %s %s %s", row, column, parent)
             return QtCore.QModelIndex()
 
         if not parent.isValid():
-            parent_prim = self.root
-        else:
-            parent_prim = parent.internalPointer()
+            # We assume the root has already been registered.
+            root = self._index.root
+            return self.createIndex(row, column, root)
 
-        if not parent_prim or not parent_prim.IsValid():
-            self.log.error("Invalid parent prim for index: %s", parent)
-            return QtCore.QModelIndex()
-
-        children = list(parent_prim.GetAllChildren())
-        if row > len(children):
-            return QtCore.QModelIndex()
-
-        prim = children[row]
-        return self.createIndex(row, column, prim)
+        parent_proxy = parent.internalPointer()
+        child = self._index.get_child(parent_proxy, row)
+        return self.createIndex(row, column, child)
 
     def parent(self, index):
+        if not self._is_stage_valid():
+            return QtCore.QModelIndex()
+
         if not index.isValid():
             return QtCore.QModelIndex()
 
-        prim = index.internalPointer()
-        if prim is None or prim.IsPseudoRoot() or not prim.IsValid():
+        proxy = index.internalPointer()
+        if proxy is None:
             return QtCore.QModelIndex()
 
-        # If it has no parents we return the pseudoroot as an invalid index
-        parent_prim = prim.GetParent()
-        if parent_prim is None or parent_prim.IsPseudoRoot():
+        if self._index.is_root(proxy):
             return QtCore.QModelIndex()
 
-        row = self._prim_to_row_index(parent_prim)
-        return self.createIndex(row, 0, parent_prim)
+        parent_proxy = self._index.get_parent(proxy)
+        parent_row = self._index.get_row(parent_proxy)
+        return self.createIndex(parent_row, index.column(), parent_proxy)
+
 
     def data(self, index, role):
+        if not self._is_stage_valid():
+            return
+
         if not index.isValid():
             return
 
         if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
-            prim = index.internalPointer()
+            prim = index.internalPointer().get_prim()
             return prim.GetName()
 
         if role == QtCore.Qt.DecorationRole:
             # icon
-            prim = index.internalPointer()
+            prim = index.internalPointer().get_prim()
             return self._icon_provider.get_icon(prim)
 
         if role == QtCore.Qt.ToolTipRole:
-            prim = index.internalPointer()
+            prim = index.internalPointer().get_prim()
             return prim.GetTypeName()
 
         if role == self.PrimRole:
-            return index.internalPointer()
+            return index.internalPointer().get_prim()
 
         if role == DrawRectsDelegate.RectDataRole:
-            prim = index.internalPointer()
+            prim = index.internalPointer().get_prim()
             rects = []
             if prim == self.stage.GetDefaultPrim():
                 rects.append(
