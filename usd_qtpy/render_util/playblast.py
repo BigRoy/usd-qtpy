@@ -3,20 +3,20 @@
 
 # NOTES:
 # pxr.UsdViewq.ExportFreeCameraToStage will export the camera from the view (a FreeCamera/ pxr.Gf.Camera, purely OpenGL)
+import logging
+from typing import Union
+from collections.abc import Generator
 
+from qtpy import QtCore
 from pxr import Usd, UsdGeom
 from pxr import UsdAppUtils
 from pxr import Tf, Sdf
-
 from pxr.Usdviewq.stageView import StageView
-from viewer import CustomStageView
 
-from qtpy import QtCore
+from ..viewer import CustomStageView
 
-from typing import Union
-import logging
 
-def _setupOGLWidget(width : int, height : int, samples : int = 4):
+def _setup_opengl_widget(width: int, height: int, samples: int = 4):
     """
     Utility function to produce a Qt openGL widget capable of catching
     the output of a render
@@ -36,9 +36,9 @@ def _setupOGLWidget(width : int, height : int, samples : int = 4):
 
     return GLWidget
 
-def findCameras(stage : Usd.Stage, TraverseAll = True) -> list[UsdGeom.Camera]:
+def iter_stage_cameras(stage: Usd.Stage, TraverseAll = True) -> Generator[UsdGeom.Camera]:
     """
-    Return all camera primitives.
+    Return a generator of all camera primitives.
     TraverseAll is on by default. This means that inactive cameras will also be shown.
     """
 
@@ -47,48 +47,49 @@ def findCameras(stage : Usd.Stage, TraverseAll = True) -> list[UsdGeom.Camera]:
     else: 
         gen = stage.Traverse()
     
-    cams = [c for c in gen if UsdGeom.Camera(c)]
-    return cams
+    for prim in gen:
+        if prim.IsA(UsdGeom.Camera):
+            yield prim
 
-def cameraFromView(stage : Usd.Stage, stageview : Union[StageView, CustomStageView], name : str = "playblastCam") -> UsdGeom.Camera:
+def camera_from_stageview(stage: Usd.Stage, stageview: Union[StageView, CustomStageView], name: str = "playblastCam") -> UsdGeom.Camera:
     """ Catches a stage view whether it'd be from the custom viewer or from the baseclass and calls the export to stage function."""
     stageview.ExportFreeCameraToStage(stage,name)
     return UsdGeom.Camera.Get(stage,Sdf.Path(f"/{name}"))
 
 # Source: UsdAppUtils.colorArgs.py
-def getColorArgs():
+def get_color_args():
     return ("disabled","sRGB","openColorIO")
 
-def getComplexityLevels():
+def get_complexity_levels() -> Generator[str]:
     """
     Returns a generator that iterates through all registered complexity presets in UsdAppUtils.complexityArgs
     """
     from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
     return (item.name for item in Complex._ordered)
 
-def getAllRenderEngineNames():
+def iter_renderplugin_names() -> Generator[str]:
     """
     Returns a generator that will iterate through all names of Render Engine Plugin / Hydra Delegates
     """
     from pxr.UsdImagingGL import Engine as En
     return (En.GetRendererDisplayName(pluginId) for pluginId in En.GetRendererPlugins())
 
-def getRenderPlugin(enginestr : str):
+def get_renderplugin(enginestr: str):
     from pxr.UsdImagingGL import Engine as En
     for plug in En.GetRendererPlugins():
         if enginestr == En.GetRendererDisplayName(plug):
             return plug
     return None
 
-def checkRenderEngineName(enginestr : str) -> Union[str, None]:
-    plugnames = getAllRenderEngineNames()
+def check_renderplugin_name(enginestr: str) -> Union[str, None]:
+    plugnames = iter_renderplugin_names()
     if enginestr in plugnames:
         return enginestr
     return None
 
-def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : int, 
-                    camera : UsdGeom.Camera = None, complexity : Union[str,int] = "High",
-                    renderer : str = "GL", colormode : str = "sRGB"): 
+def render_playblast(stage: Usd.Stage, outputpath: str, frames: str, width: int, 
+                    camera: UsdGeom.Camera = None, complexity: Union[str,int] = "High",
+                    renderer: str = "GL", colormode: str = "sRGB"): 
     from pxr.UsdAppUtils.framesArgs import FrameSpecIterator, ConvertFramePlaceholderToFloatSpec
     from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
     from pxr import UsdUtils
@@ -103,7 +104,7 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
         # ensure key correctness
         complexity = complexity.lower() # set all to lowercase
         complexity = complexity.title() # Uppercase Each Word (In Case Of "Very High")
-        preset_names = getComplexityLevels()
+        preset_names = get_complexity_levels()
         if complexity not in preset_names:
             raise ValueError(f"Value: {complexity} entered for complexity is not valid")
         
@@ -115,9 +116,9 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
     complex_level = complex_level.value
 
     # validate render engine
-    if not checkRenderEngineName(renderer):
-        raise ValueError(f"Render engine arguement invalid")
-    renderer = getRenderPlugin(renderer)
+    if not check_renderplugin_name(renderer):
+        raise ValueError("Render plugin arguement invalid")
+    renderer = get_renderplugin(renderer)
 
     # No Camera: Assume scene wide camera (same behavior as usdrecord)
     if not camera:
@@ -125,20 +126,20 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
         path = Sdf.Path(UsdUtils.GetPrimaryCameraName())
         camera = UsdAppUtils.GetCameraAtPath(stage, path)
 
-    if colormode not in getColorArgs():
+    if colormode not in get_color_args():
         raise ValueError("Color correction mode specifier is invalid.")
 
     # Set up OpenGL FBO to write to within Widget
     # Actual size doesn't matter
     # it does need to be stored in a variable though, otherwise it'll be collected
-    ogl_widget = _setupOGLWidget(width,width) 
+    ogl_widget = _setup_opengl_widget(width,width) 
 
     # Create FrameRecorder
-    frameRecorder = UsdAppUtils.FrameRecorder()
-    frameRecorder.SetRendererPlugin(renderer)
-    frameRecorder.SetImageWidth(width) # Only width is needed, heigh will be computer from camera properties.
-    frameRecorder.SetComplexity(complex_level)
-    frameRecorder.SetColorCorrectionMode(colormode)
+    frame_recorder = UsdAppUtils.FrameRecorder()
+    frame_recorder.SetRendererPlugin(renderer)
+    frame_recorder.SetImageWidth(width) # Only width is needed, heigh will be computer from camera properties.
+    frame_recorder.SetComplexity(complex_level)
+    frame_recorder.SetColorCorrectionMode(colormode)
     #frameRecorder.SetIncludedPurposes(["default","render","proxy","guide"]) # set to all purposes for now.
 
     # Use Usds own frame specification parser
@@ -149,16 +150,13 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
     if not frame_iterator:
         frame_iterator = [Usd.TimeCode.EarliestTime()]
 
-    for timeCode in frame_iterator:
-        currentframe = outputpath.format(frame = timeCode.GetValue())
-        print(currentframe)
+    for time_code in frame_iterator:
+        current_frame = outputpath.format(frame = time_code.GetValue())
         try:
-            print("attempting render")
-            frameRecorder.Record(stage, camera, timeCode, currentframe)
-            print("Done!")
+            frame_recorder.Record(stage, camera, time_code, current_frame)
         except Tf.ErrorException as e:
-            logging.error("Recording aborted due to the following failure at time code {0}: {1}".format(timeCode, str(e)))
+            logging.error("Recording aborted due to the following failure at time code %s: %s",time_code, e)
             break
     
     # Set reference to None so that it can be collected before Qt context.
-    frameRecorder = None
+    frame_recorder = None

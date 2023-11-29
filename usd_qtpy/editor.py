@@ -105,19 +105,19 @@ class EditorWindow(QtWidgets.QWidget):
         # Render menu
 
         render_menu = menubar.addMenu("Render")
-        render_labels = "Playblast" , "Snapshot"
+        render_labels = "Playblast", "Snapshot"
         render_actions = {label : render_menu.addAction(label) for label in render_labels}
 
         # Testing 
-        print("\n".join(render_util.getAllRenderEngineNames()))
+        print("\n".join(render_util.iter_renderplugin_names()))
         goal_file = R"C:\dump\playblastview##.##.png"
         
-        def render_snapshot(stage,stageview,path):
+        def render_snapshot(stage, stageview, path):
             # cam = render_util.playblast.cameraFromView(stage,stageview)
             # render_util.playblast.renderPlayblast(stage,path,"1",1920,cam,renderer="GL")
-            render_util.playblast.renderPlayblast(stage,path,"1",1920,renderer="GL")
+            render_util.playblast.render_playblast(stage,path,"1",1920,renderer="GL")
 
-        render_snap = partial(render_snapshot,self._stage,self._stageview,goal_file)
+        render_snap = partial(render_snapshot, self._stage, self._stageview, goal_file)
 
         render_actions["Snapshot"].triggered.connect(render_snap)
 
