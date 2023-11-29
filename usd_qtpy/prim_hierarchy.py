@@ -92,7 +92,7 @@ class View(QtWidgets.QTreeView):
         create_prim_menu.triggered.connect(create_prim)
 
         # Set and clear default prim
-        if parent != root and parent.GetParent() == root:
+        if parent.GetPath().IsRootPrimPath():
             # This prim is a primitive directly under root so can be an
             # active prim
             is_default_prim = parent == default_prim
