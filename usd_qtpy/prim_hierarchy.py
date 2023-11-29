@@ -32,10 +32,8 @@ class View(QtWidgets.QTreeView):
         stage = model.stage
 
         parent = index.data(HierarchyModel.PrimRole)
-        root = stage.GetPseudoRoot()
-        default_prim = stage.GetDefaultPrim()
         if not parent:
-            parent = root
+            parent = stage.GetPseudoRoot()
         parent_path = parent.GetPath()
 
         menu = QtWidgets.QMenu(self)
@@ -96,13 +94,11 @@ class View(QtWidgets.QTreeView):
         if parent_path.IsRootPrimPath():
             # This prim is a primitive directly under root so can be an
             # active prim
-            is_default_prim = parent == default_prim
-            if is_default_prim:
+            if parent == stage.GetDefaultPrim():
                 label = "Clear default prim"
                 action = menu.addAction(label)
                 tip = (
                     "Clear the default prim from the stage's root layer.\n"
-                    f"The current default prim is {default_prim.GetName()}"
                 )
                 action.setToolTip(tip)
                 action.setStatusTip(tip)
