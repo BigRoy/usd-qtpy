@@ -1,0 +1,83 @@
+{
+    "palette": {
+        "grey-base": "#2C313A",
+        "grey-light": "#373D48",
+        "grey-lighter": "#434a56",
+        "grey-lightest": "#4E5565",
+        "grey-input": "#353A45",
+        "grey-dark": "#21252B",
+
+        "text-darker": "#99A3B2",
+        "text-base": "#D3D8DE",
+        "text-lighter": "#F0F2F5",
+
+        "blue-base": "hsl(200, 20%, 60%)",
+        "blue-light": "hsl(200, 40%, 80%)",
+
+        "green-base": "hsl(155, 55%, 55%)",
+        "green-light": "hsl(155, 80%, 80%)"
+    },
+    "color": {
+        "font": "#D3D8DE",
+        "font-hover": "#F0F2F5",
+        "font-disabled": "#5b6779",
+        "font-view-selection": "#ffffff",
+        "font-view-hover": "#F0F2F5",
+
+        "bg": "#2C313A",
+        "bg-inputs": "#21252B",
+        "bg-buttons": "rgb(67, 74, 86)",
+        "bg-buttons-hover": "rgb(81, 86, 97)",
+        "bg-buttons-checked": "rgb(121, 136, 157)",
+        "bg-inputs-disabled": "#2C313A",
+        "bg-buttons-disabled": "#434a56",
+
+        "bg-splitter": "#434a56",
+        "bg-splitter-hover": "rgba(168, 175, 189, 0.3)",
+
+        "bg-menu-separator": "rgba(75, 83, 98, 127)",
+
+        "bg-scroll-handle": "#4B5362",
+
+        "bg-view": "#21252B",
+        "bg-view-header": "#373D48",
+        "bg-view-hover": "rgba(168, 175, 189, .3)",
+        "bg-view-alternate": "rgb(36, 42, 50)",
+        "bg-view-disabled": "#2C313A",
+        "bg-view-alternate-disabled": "#2C313A",
+        "bg-view-selection": "rgba(92, 173, 214, .4)",
+        "bg-view-selection-hover": "rgba(92, 173, 214, .8)",
+
+        "border": "#373D48",
+        "border-hover": "rgb(92, 99, 111)",
+        "border-focus": "rgb(92, 173, 214)",
+
+        "restart-btn-bg": "#458056",
+
+        "delete-btn-bg": "rgb(201, 54, 54)",
+        "delete-btn-bg-disabled": "rgba(201, 54, 54, 64)",
+
+        "icon-tools": "#ffffff",
+        "icon-alert-tools": "#AA5050",
+        "icon-entity-default": "#65bbc5",
+        "icon-entity-disabled": "#808080",
+        "font-entity-deprecated": "#666666",
+        "overlay-messages": {
+            "close-btn": "#D3D8DE",
+            "bg-success": "#458056",
+            "bg-success-hover": "#55a066",
+            "bg-error": "#AD2E2E",
+            "bg-error-hover": "#C93636",
+            "bg-info": "rgb(63, 98, 121)",
+            "bg-info-hover": "rgb(81, 146, 181)"
+        },
+        "tab-widget": {
+            "bg": "#21252B",
+            "bg-selected": "#434a56",
+            "bg-hover": "#373D48",
+            "color": "#99A3B2",
+            "color-selected": "#F0F2F5",
+            "color-hover": "#F0F2F5"
+        }
+    }
+}
