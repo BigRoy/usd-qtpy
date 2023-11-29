@@ -1,11 +1,13 @@
 import logging
+from functools import partial
 
 from qtpy import QtWidgets, QtCore
 
 from . import (
     prim_hierarchy,
     layer_editor,
-    prim_spec_editor
+    prim_spec_editor,
+    render_util
 )
 
 
@@ -29,6 +31,8 @@ class EditorWindow(QtWidgets.QWidget):
             title = f"{title}: {name}"
         self.setWindowTitle(title)
 
+        self._stage = stage
+
         self.setWindowFlags(
             self.windowFlags() |
             QtCore.Qt.Dialog
@@ -49,8 +53,10 @@ class EditorWindow(QtWidgets.QWidget):
         splitter.addWidget(hierarchy_widget)
 
         viewer_widget = None
+        self._stageview = None
         if HAS_VIEWER:
             viewer_widget = viewer.Widget(stage=stage)
+            self._stageview = viewer_widget.view
             splitter.addWidget(viewer_widget)
 
         prim_spec_editor_widget = prim_spec_editor.SpecEditorWindow(stage=stage)
@@ -75,6 +81,8 @@ class EditorWindow(QtWidgets.QWidget):
 
         menubar = QtWidgets.QMenuBar()
 
+        # Panels menu
+
         panels_menu = menubar.addMenu("Panels")
         for label, widget in self._panels.items():
             action = panels_menu.addAction(label)
@@ -93,6 +101,24 @@ class EditorWindow(QtWidgets.QWidget):
                     action.blockSignals(False)
 
         panels_menu.aboutToShow.connect(update_panel_checkstate)
+
+        # Render menu
+
+        render_menu = menubar.addMenu("Render")
+        render_labels = "Playblast" , "Snapshot"
+        render_actions = {label : render_menu.addAction(label) for label in render_labels}
+
+        # Testing 
+        print("\n".join(render_util.getAllRenderEngineNames()))
+        goal_file = R"C:\dump\playblastview##.##.png"
+        
+        def render_snapshot(stage,stageview,path):
+            cam = render_util.playblast.cameraFromView(stage,stageview)
+            render_util.playblast.renderPlayblast(stage,path,"1",1920,cam,renderer="GL")
+
+        render_snap = partial(render_snapshot,self._stage,self._stageview,goal_file)
+
+        render_actions["Snapshot"].triggered.connect(render_snap)
 
         layout = self.layout()
         layout.setMenuBar(menubar)
