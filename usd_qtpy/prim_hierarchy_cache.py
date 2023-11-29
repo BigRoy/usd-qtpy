@@ -14,8 +14,8 @@ class Proxy:
 
     def refresh_children(self, predicate):
         self._children = [
-            prim.GetPath()
-            for prim in self._prim.GetFilteredChildren(predicate)
+            child_prim.GetPath()
+            for child_prim in self._prim.GetFilteredChildren(predicate)
         ]
 
     def get_children(self) -> List[Sdf.Path]:
@@ -106,8 +106,14 @@ class HierarchyCache:
         else:
             log.debug("Skipping deletion of uninstantiated path: '%s'", path)
 
-    def resync_subtrees(self, paths: List[Sdf.Path]):
-        unique_parents = {path.GetParentPath() for path in paths}
+    def resync_subtrees(self, paths: set[Sdf.Path]):
+        root_path = Sdf.Path("/")
+        if root_path in paths:
+            # Resync all
+            unique_parents = {root_path}
+        else:
+            unique_parents = {path.GetParentPath() for path in paths}
+
         for parent_path in unique_parents:
             proxy = self._path_to_proxy.get(parent_path)
             if not proxy:

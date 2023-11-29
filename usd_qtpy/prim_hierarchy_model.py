@@ -13,7 +13,7 @@ from .prim_hierarchy_cache import HierarchyCache, Proxy
 
 
 @contextlib.contextmanager
-def layout_change_context(model):
+def layout_change_context(model: QtCore.QAbstractItemModel):
     """Context manager to ensure model layout changes are propagated if an
     exception is thrown.
     """
@@ -100,6 +100,7 @@ class HierarchyModel(QtCore.QAbstractItemModel):
         return self._stage and self._stage.GetPseudoRoot()
 
     def register_listeners(self):
+        """Register Tf.Notice listeners"""
 
         if self._listeners:
             # Do not allow to register more than once, clear old listeners
@@ -112,13 +113,9 @@ class HierarchyModel(QtCore.QAbstractItemModel):
                 self.on_objects_changed,
                 self._stage
             ))
-            self._listeners.append(Tf.Notice.Register(
-                Usd.Notice.LayerMutingChanged,
-                self.on_layer_muting_changed,
-                self._stage
-            ))
 
     def revoke_listeners(self):
+        """Revoke Tf.Notice listeners"""
         for listener in self._listeners:
             listener.Revoke()
         self._listeners.clear()
@@ -137,64 +134,56 @@ class HierarchyModel(QtCore.QAbstractItemModel):
             self.endResetModel()
 
     @report_error
-    def on_layer_muting_changed(self, notice, sender):
-        # TODO: Be more clever than full reset on layer mutes?
-        with self.reset_model():
-            # Reset from the root
-            self._index._invalidate_subtree(Sdf.Path("/"))
-            pass
-
-    @report_error
     def on_objects_changed(self, notice, sender):
         resynced_paths = notice.GetResyncedPaths()
-        resynced_paths = {path for path in resynced_paths if path.IsPrimPath()}
-
+        resynced_paths = {
+            path for path in resynced_paths if path.IsPrimPath()
+            # Also include the absolute root path (e.g. layer muting)
+            or path.IsAbsoluteRootPath()
+        }
         if not resynced_paths:
             return
 
         # Include parents so we can use it as lookup for the "sibling" check
-
-        resynced_paths.update(
+        resynced_paths_and_parents = resynced_paths.copy()
+        resynced_paths_and_parents.update(
             path.GetParentPath() for path in list(resynced_paths)
         )
+        with layout_change_context(self):
+            persistent_indices = self.persistentIndexList()
+            index_to_path = {}
+            for index in persistent_indices:
+                index_prim = index.internalPointer().get_prim()
+                index_path = index_prim.GetPath()
+                if (
+                        index_path in resynced_paths_and_parents
+                        or index_path.GetParentPath() in resynced_paths_and_parents
+                ):
+                    index_to_path[index] = index_path
 
-        if len(resynced_paths) > 0:
-            with layout_change_context(self):
-                persistent_indices = self.persistentIndexList()
-                index_to_path = {}
-                for index in persistent_indices:
-                    index_prim = index.internalPointer().get_prim()
-                    index_path = index_prim.GetPath()
+            self._index.resync_subtrees(resynced_paths)
 
-                    if (
-                            index_path in resynced_paths
-                            or index_path.GetParentPath() in resynced_paths
-                    ):
-                        index_to_path[index] = index_path
+            from_indices = []
+            to_indices = []
+            for index in index_to_path:
+                path = index_to_path[index]
 
-                self._index.resync_subtrees(resynced_paths)
+                if path in self._index:
+                    new_proxy = self._index.get_proxy(path)
+                    new_row = self._index.get_row(new_proxy)
 
-                from_indices = []
-                to_indices = []
-                for index in index_to_path:
-                    path = index_to_path[index]
-
-                    if path in self._index:
-                        new_proxy = self._index.get_proxy(path)
-                        new_row = self._index.get_row(new_proxy)
-
-                        if index.row() != new_row:
-                            for _i in range(
-                                self.columnCount(QtCore.QModelIndex())
-                            ):
-                                from_indices.append(index)
-                                to_indices.append(self.createIndex(
-                                    new_row, index.column(), new_proxy)
-                                )
-                    else:
-                        from_indices.append(index)
-                        to_indices.append(QtCore.QModelIndex())
-                self.changePersistentIndexList(from_indices, to_indices)
+                    if index.row() != new_row:
+                        for _i in range(
+                            self.columnCount(QtCore.QModelIndex())
+                        ):
+                            from_indices.append(index)
+                            to_indices.append(self.createIndex(
+                                new_row, index.column(), new_proxy)
+                            )
+                else:
+                    from_indices.append(index)
+                    to_indices.append(QtCore.QModelIndex())
+            self.changePersistentIndexList(from_indices, to_indices)
 
     def _prim_to_row_index(self,
                            path: Sdf.Path) -> Optional[QtCore.QModelIndex]:
@@ -291,7 +280,6 @@ class HierarchyModel(QtCore.QAbstractItemModel):
         parent_proxy = self._index.get_parent(proxy)
         parent_row = self._index.get_row(parent_proxy)
         return self.createIndex(parent_row, index.column(), parent_proxy)
-
 
     def data(self, index, role):
         if not self._is_stage_valid():
