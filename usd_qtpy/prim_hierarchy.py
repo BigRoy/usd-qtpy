@@ -179,6 +179,10 @@ class HierarchyWidget(QtWidgets.QDialog):
         model = HierarchyModel(stage=stage)
         view = View()
         view.setModel(model)
+        # Set the root to the pseudoroot prim so we don't see / listed
+        # TODO: This is a bit of a quick hack and likely isn't preferred once
+        #  we put in proxy models in between, etc.
+        view.setRootIndex(model.index(0, 0, QtCore.QModelIndex()))
 
         self.model = model
         self.view = view
