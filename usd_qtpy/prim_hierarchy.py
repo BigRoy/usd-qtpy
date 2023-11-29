@@ -36,6 +36,7 @@ class View(QtWidgets.QTreeView):
         default_prim = stage.GetDefaultPrim()
         if not parent:
             parent = root
+        parent_path = parent.GetPath()
 
         menu = QtWidgets.QMenu(self)
 
@@ -43,7 +44,7 @@ class View(QtWidgets.QTreeView):
             type_name = action.text()
 
             # Ensure unique name
-            base_path = parent.GetPath().AppendChild(type_name)
+            base_path = parent_path.AppendChild(type_name)
             prim_path = base_path
             i = 1
             while stage.GetPrimAtPath(prim_path):
@@ -92,7 +93,7 @@ class View(QtWidgets.QTreeView):
         create_prim_menu.triggered.connect(create_prim)
 
         # Set and clear default prim
-        if parent.GetPath().IsRootPrimPath():
+        if parent_path.IsRootPrimPath():
             # This prim is a primitive directly under root so can be an
             # active prim
             is_default_prim = parent == default_prim
@@ -115,7 +116,7 @@ class View(QtWidgets.QTreeView):
                 action.triggered.connect(partial(stage.SetDefaultPrim, parent))
 
         # Allow referencing / payloads / variants management
-        if parent != root:
+        if not parent_path.IsAbsoluteRootPath():
             action = menu.addAction("Add reference/payload..")
             action.triggered.connect(partial(
                 self.on_manage_prim_reference_payload, parent)
