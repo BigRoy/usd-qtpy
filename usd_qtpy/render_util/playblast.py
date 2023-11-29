@@ -132,7 +132,8 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
 
     # Set up OpenGL FBO to write to within Widget
     # Actual size doesn't matter
-    _setupOGLWidget(width,width) 
+    # it does need to be stored in a variable though, otherwise it'll be collected
+    ogl_widget = _setupOGLWidget(width,width) 
 
     # Create FrameRecorder
     frameRecorder = UsdAppUtils.FrameRecorder()
