@@ -25,7 +25,7 @@ classifiers = [
 dependencies = [
     'importlib-metadata; python_version<"3.7"', "qtpy"
 ]
-version = "0.0.1"
+version = "0.0.2"
 
 [project.optional-dependencies]
 usd = ["usd-core"]
