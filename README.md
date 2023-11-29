@@ -10,6 +10,9 @@ The Qt components can be embedded in your own Qt interfaces and usually have
 a `stage` entrypoint that you should pass a `pxr.Usd.Stage` instance.
 
 However, a simple example Editor UI is also available to run standalone.
+
+![USD Editor](/assets/images/editor_screenshot.png "USD Editor")
+
 If you have the `usd_qtpy` package you can for example run it like:
 
 ```
