@@ -93,7 +93,7 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
     from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
     from pxr import UsdUtils
 
-    # rectify pathname for use in .format with path.format(frame = timeCode.getValue())gi
+    # rectify pathname for use in .format with path.format(frame = timeCode.getValue())
     if not (outputpath := ConvertFramePlaceholderToFloatSpec(outputpath)):
         raise ValueError("Invalid/Empty filepath for rendering")
 
@@ -119,13 +119,11 @@ def renderPlayblast(stage : Usd.Stage, outputpath : str, frames : str, width : i
         raise ValueError(f"Render engine arguement invalid")
     renderer = getRenderPlugin(renderer)
 
-    # TEMP: pick first found camera
+    # No Camera: Assume scene wide camera (same behavior as usdrecord)
     if not camera:
-        camera = next(findCameras(stage), None)
-        if not camera:
-            # Same procedure as default for pxr.UsdAppUtils.cameraArgs.py
-            path = Sdf.Path(UsdUtils.GetPrimaryCameraName())
-            camera = UsdAppUtils.GetCameraAtPath(stage, path)
+        # Same procedure as default for pxr.UsdAppUtils.cameraArgs.py
+        path = Sdf.Path(UsdUtils.GetPrimaryCameraName())
+        camera = UsdAppUtils.GetCameraAtPath(stage, path)
 
     if colormode not in getColorArgs():
         raise ValueError("Color correction mode specifier is invalid.")
