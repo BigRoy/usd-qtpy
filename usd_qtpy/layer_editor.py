@@ -2,6 +2,7 @@ import os
 import contextlib
 import logging
 from functools import partial
+from typing import List
 
 from qtpy import QtWidgets, QtCore, QtGui
 
@@ -11,6 +12,7 @@ from .tree.itemtree import ItemTree, TreeItem
 from .tree.base import AbstractTreeModelMixin
 from .lib.qt import schedule, iter_model_rows
 from .layer_diff import LayerDiffWidget
+from .resources import get_icon
 
 log = logging.getLogger(__name__)
 
@@ -53,18 +55,22 @@ def set_tips(widget, tip):
 
 
 class LayerItem(TreeItem):
-    __slots__ = ('layer', 'parent_layer')
+    __slots__ = ('layer', 'stack')
 
-    def __init__(self, layer: Sdf.Layer, parent_layer: Sdf.Layer = None):
-        if parent_layer:
-            separator = "<--sublayer-->"
-            key = separator.join([parent_layer.identifier, layer.identifier])
-        else:
-            key = layer.identifier
+    def __init__(self, layer: Sdf.Layer, parents: List[Sdf.Layer] = None):
+
+        # The key is the full layer stack (all parents) joined together
+        # by a unique separator so the layer identifier can uniquely appear
+        # anywhere on the layer stack
+        parents = parents or []
+        stack = list(parents)
+        stack.append(layer)
+        separator = "<--sublayer-->"
+        key = separator.join(stack_layer.identifier for stack_layer in stack)
 
         super(LayerItem, self).__init__(key=key)
         self.layer = layer
-        self.parent_layer = parent_layer
+        self.stack = stack
 
 
 class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
@@ -284,15 +290,15 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
             return
 
         self._stage = stage
+        self.refresh()
 
-        if self._listeners:
-            self.log.debug("Revoking Tf.Notice listeners: %s", self._listeners)
-            # Tf.Notice.Revoke(self._listeners)
-            for listener in self._listeners:
-                listener.Revoke()
-
-        self._listeners.clear()
+    def register_listeners(self):
+        stage = self._stage
         if stage and stage.GetPseudoRoot():
+            if self._listeners:
+                # Remove any existing listeners
+                self.revoke_listeners()
+
             self.log.debug("Adding Tf.Notice Listeners..")
             # Listen to changes
             self._listeners.append(Tf.Notice.Register(
@@ -327,7 +333,14 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
             #     self.on_layers_changed,
             # ))
 
-        self.refresh()
+    def revoke_listeners(self):
+        if self._listeners:
+            self.log.debug("Revoking Tf.Notice listeners: %s", self._listeners)
+            # Tf.Notice.Revoke(self._listeners)
+            for listener in self._listeners:
+                listener.Revoke()
+
+        self._listeners.clear()
 
     @contextlib.contextmanager
     def reset_context(self):
@@ -351,8 +364,8 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
                 return
 
             def add_layer(layer: Sdf.Layer, parent=None):
-                parent_layer = parent.layer if parent else None
-                layer_item = LayerItem(layer, parent_layer=parent_layer)
+                parent_layers = parent.stack if parent else None
+                layer_item = LayerItem(layer, parents=parent_layers)
                 item_tree.add_items(layer_item, parent=parent)
 
                 for sublayer_path in layer.subLayerPaths:
@@ -406,24 +419,16 @@ class LayerWidget(QtWidgets.QWidget):
         # Identifier label as display name
         label = QtWidgets.QLabel("", parent=self)
 
-        resources = os.path.join(os.path.dirname(__file__),
-                                 "resources",
-                                 "feathericons")
-
         # Save changes button
-        save_icon = QtGui.QIcon(os.path.join(resources, "save.svg"))
-        save = QtWidgets.QPushButton(self)
+        save = QtWidgets.QPushButton(get_icon("save"), "", self)
         set_tips(
             save, "Save layer to disk"
         )
-        save.setIcon(save_icon)
         save.setFixedWidth(25)
         save.setFixedHeight(25)
 
         # Set edit target (active or not button)
-        edit_icon = QtGui.QIcon(os.path.join(resources, "edit-2.svg"))
-        edit_target_btn = QtWidgets.QPushButton(self)
-        edit_target_btn.setIcon(edit_icon)
+        edit_target_btn = QtWidgets.QPushButton(get_icon("edit-2"), "", self)
         edit_target_btn.setCheckable(True)
         set_tips(
             edit_target_btn,
@@ -515,7 +520,6 @@ class LayerWidget(QtWidgets.QWidget):
         # TODO: Prompt for filepath if layer is anonymous?
         # TODO: Allow making filepath relative to parent layer?
         log.debug(f"Saving: {layer}")
-        log.debug(layer.ExportToString())
         layer.Save()
         # TODO: Do not update using this but base it off of signals from
         #  Sdf.Notice.LayerDidSaveLayerToFile
@@ -599,6 +603,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
 
             def show_layer_as_text():
                 text_edit = QtWidgets.QTextEdit(parent=self)
+                text_edit.setProperty("font-style", "monospace")
                 text_edit.setPlainText(layer.ExportToString())
                 text_edit.setWindowTitle(layer.identifier)
                 text_edit.setWindowFlags(QtCore.Qt.Dialog)
@@ -692,9 +697,11 @@ class LayerTreeWidget(QtWidgets.QWidget):
             log.debug("Adding sublayer: %s", filename)
             layer.subLayerPaths.append(filename)
 
+    def showEvent(self, event):
+        self.model.register_listeners()
+
     def hideEvent(self, event: QtGui.QCloseEvent) -> None:
         # TODO: This should be on a better event when we know the window
         #   will be gone and unused after. The `closeEvent` doesn't seem
         #   to trigger by default on closing a parent dialog?
-        log.debug("Clearing stage connection..")
-        self.model.set_stage(None)  # clear listeners on close
+        self.model.revoke_listeners()

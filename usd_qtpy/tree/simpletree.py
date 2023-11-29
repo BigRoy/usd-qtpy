@@ -1,6 +1,6 @@
 import logging
 
-from PySide2 import QtCore
+from qtpy import QtCore
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class TreeModel(QtCore.QAbstractItemModel):
         if not index.isValid():
             return None
 
-        if role == QtCore.Qt.DisplayRole:
+        if role == QtCore.Qt.DisplayRole or role == QtCore.Qt.EditRole:
             item = index.internalPointer()
             column = index.column()
 
@@ -46,7 +46,6 @@ class TreeModel(QtCore.QAbstractItemModel):
         if role == QtCore.Qt.DisplayRole:
             if section < len(self.Columns):
                 return self.Columns[section]
-        return
 
         return super(TreeModel, self).headerData(section, orientation, role)
 
@@ -54,6 +53,10 @@ class TreeModel(QtCore.QAbstractItemModel):
         flags = QtCore.Qt.ItemIsEnabled
 
         item = index.internalPointer()
+        if item is None:
+            log.warning("No item found for index: %s", index)
+            return flags
+
         if item.get("enabled", True):
             flags |= QtCore.Qt.ItemIsSelectable
 

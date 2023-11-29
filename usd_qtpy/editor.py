@@ -1,6 +1,6 @@
 import logging
 
-from qtpy import QtWidgets
+from qtpy import QtWidgets, QtCore
 
 from . import (
     prim_hierarchy,
@@ -17,13 +17,22 @@ except ImportError:
     HAS_VIEWER = False
 
 
-class EditorWindow(QtWidgets.QDialog):
+class EditorWindow(QtWidgets.QWidget):
     """Example editor window containing the available components."""
 
     def __init__(self, stage, parent=None):
         super(EditorWindow, self).__init__(parent=parent)
 
-        self.setWindowTitle("USD Editor")
+        title = "USD Editor"
+        if stage:
+            name = stage.GetRootLayer().GetDisplayName()
+            title = f"{title}: {name}"
+        self.setWindowTitle(title)
+
+        self.setWindowFlags(
+            self.windowFlags() |
+            QtCore.Qt.Dialog
+        )
 
         layout = QtWidgets.QVBoxLayout(self)
         splitter = QtWidgets.QSplitter(self)

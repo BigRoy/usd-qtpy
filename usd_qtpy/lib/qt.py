@@ -1,7 +1,7 @@
 import re
 import sys
 import logging
-from qtpy import QtCore, QtGui
+from qtpy import QtCore, QtGui, QtWidgets
 
 
 class SharedObjects:
@@ -93,3 +93,26 @@ class DifflibSyntaxHighlighter(QtGui.QSyntaxHighlighter):
                 # Format the full block
                 self.setFormat(0, len(text), char_format)
                 return
+
+
+class DropFilesPushButton(QtWidgets.QPushButton):
+    """QPushButton that emits files_dropped signal when dropping files on it"""
+
+    files_dropped = QtCore.Signal(list)
+
+    def __init__(self, *args, **kwargs):
+        super(DropFilesPushButton, self).__init__(*args, **kwargs)
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+        else:
+            super(DropFilesPushButton, self).dragEnterEvent(event)
+
+    def dropEvent(self, event):
+        if event.mimeData().hasUrls():
+            self.files_dropped.emit(event.mimeData().urls())
+            event.acceptProposedAction()
+        else:
+            super(DropFilesPushButton, self).dropEvent(event)
