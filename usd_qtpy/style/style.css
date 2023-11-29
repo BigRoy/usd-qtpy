@@ -25,6 +25,10 @@ Enabled vs Disabled logic in most of stylesheets
     outline: none;
 }
 
+*[font-style="monospace"] {
+    font-family: "Noto Sans Mono";
+}
+
 QWidget {
     color: {color:font};
     background: {color:bg};

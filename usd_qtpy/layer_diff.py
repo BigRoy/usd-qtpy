@@ -60,7 +60,7 @@ class LayerDiffWidget(QtWidgets.QDialog):
         text_edit = QtWidgets.QTextEdit()
 
         # Force monospace font for readability
-        text_edit.setStyleSheet('* { font-family: "Courier"; }')
+        text_edit.setProperty("font-style", "monospace")
         text_edit.setLineWrapMode(QtWidgets.QTextEdit.NoWrap)
         highlighter = DifflibSyntaxHighlighter(text_edit)
         text_edit.setPlaceholderText("Layers match - no difference detected.")
