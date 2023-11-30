@@ -529,8 +529,9 @@ class SpecEditsWidget(QtWidgets.QWidget):
 
         with Sdf.ChangeBlock():
             for spec in specs:
-                log.debug(f"Removing spec: %s", spec.path)
-                remove_spec(spec)
+                if spec and not spec.expired:
+                    log.debug(f"Removing spec: %s", spec.path)
+                    remove_spec(spec)
             for deletable in deletables:
                 deletable.delete()
         return True
