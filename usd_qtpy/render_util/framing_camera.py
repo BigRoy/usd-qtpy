@@ -61,12 +61,41 @@ def set_camera_clipping(stage: Usd.Stage ,camera: UsdGeom.Camera, boundingbox: G
     # to be continued
     ...
 
+def calculate_stage_distance_to_camera(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None) -> float:
+    """
+    Calculates a distance from the centroid of the stage that would allow a camera to frame it perfectly.
+    """
+    # Convenience. Life is short.
+    if not bounds_min or not bounds_max:
+        boundingbox = get_stage_boundingbox(stage)
+        bounds_min, bounds_max = boundingbox.GetMin(), boundingbox.GetMax()
+    
+    z_up = (_stage_up(stage) == "Z")
+
+    focal_length = camera.GetFocalLengthAttr().Get()
+    hor_aperture = camera.GetHorizontalApertureAttr().Get()
+    ver_aperture = camera.GetVerticalApertureAttr().Get()
+
+    ver_idx = 2 if z_up else 1
+
+    # get size of bounds
+    d_hor = bounds_max[0] - bounds_min[0]
+    d_ver = bounds_max[ver_idx] - bounds_min[ver_idx]
+
+    fov_hor, fov_ver = calculate_field_of_view(focal_length,hor_aperture), calculate_field_of_view(focal_length,ver_aperture)
+    
+    # calculate capture size. the sensor size was given in mm (24 mm sensor) 
+    # so we need to pass in cm units from the scene as mm units for correct calculation. 
+    capturesize_hor = calculate_perspective_distance(d_hor * 10, fov_hor)
+    capturesize_ver = calculate_perspective_distance(d_ver * 10, fov_ver)
+
+    return max(capturesize_hor, capturesize_ver)
+
 def calculate_field_of_view(focal_length, sensor_size) -> float:
     # Math : https://sdk-forum.dji.net/hc/en-us/articles/11317874071065-How-to-calculate-the-FoV-of-the-camera-lens-
     """
     Calculates field of view for 1 measurement of the sensor size (width or height)
     Returns field of view in radians. 
-   
     """
     # With H being the full lens height, we need to divide H by 2
     #                    H / 2
