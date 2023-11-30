@@ -2,22 +2,41 @@
 # heavy inspiration taken from: 
 # https://github.com/beersandrew/assets/tree/1df93f4da686e9040093027df1e42ff9ea694866/scripts/thumbnail-generator
 
-import logging
-from typing import Union
-from collections.abc import Generator
 import math
 
-from qtpy import QtCore
 from pxr import Usd, UsdGeom
-from pxr import UsdAppUtils
-from pxr import Tf, Sdf, Gf
+from pxr import Sdf, Gf
 
 def _stage_up(stage: Usd.Stage) -> str:
     return UsdGeom.GetStageUpAxis(stage)
 
 def create_framing_camera_in_stage(stage: Usd.Stage, root: Sdf.Path, 
                                    name: str = "framingCam", width: int = 16, height: int = 9) -> UsdGeom.Camera:
-    ...
+    # create camera
+    camera = create_perspective_camera_in_stage(stage, root, name, width, height)
+
+    # Do prerequisite math so that functions don't have to run these same operations.
+
+    bounds = get_stage_boundingbox(stage)
+    bounds_min, bounds_max = bounds.GetMin(), bounds.GetMax()
+
+    z_up = (_stage_up(stage) == "Z")
+
+    distance_to_stage = calculate_stage_distance_to_camera(camera, stage, bounds_min, bounds_max, z_up)
+
+    # setup attributes in camera
+    set_camera_clippingplanes_from_stage(camera, stage, bounds_min, bounds_max, z_up, distance_to_stage)
+
+    translation = calculate_camera_position(camera, stage, bounds_min, bounds_max, z_up, distance_to_stage)
+
+    # translate THEN rotate. Translation is always done locally. 
+    # If this needs to be switched around, swizzle translation Vec3d.
+
+    camera_apply_translation(camera, translation)
+
+    camera_orient_to_stage_up(camera, stage, z_up)
+    
+    return camera
 
 
 def create_perspective_camera_in_stage(stage: Usd.Stage, root: Sdf.Path, 
@@ -43,18 +62,46 @@ def create_perspective_camera_in_stage(stage: Usd.Stage, root: Sdf.Path,
 
     camera.CreateProjectionAttr("perspective")
 
+    cam_prim = camera.GetPrim()
+    xform_cam = UsdGeom.Xformable(cam_prim)
+    xform_cam.ClearXformOpOrder() # Clear out default operation order if there is any. (may not be needed)
+
     return camera
 
-def get_stage_boundingbox(stage: Usd.Stage, time: Usd.TimeCode = Usd.TimeCode.EarliestTime(), 
-                          purpose_tokens: list[str] = ["default"]) -> Gf.Range3d:
+def camera_orient_to_stage_up(camera: UsdGeom.Camera, stage: Usd.Stage, z_up: bool = None):
+    if z_up is None:
+        z_up = (_stage_up(stage) == "Z")
+
+    if not z_up:
+        return # do nothing when Y is up and all is good and right in the world.
+
+    from pxr.UsdGeom import XformOp
+
+    cam_prim = camera.GetPrim()
+    xform_cam = UsdGeom.Xformable(cam_prim)
+    xform_cam.AddRotateXOp(XformOp.PrecisionDouble).Set(90)
+
+def camera_apply_translation(camera: UsdGeom.Camera, translation: Gf.Vec3d):
     """
-    Caclulate a stage's bounding box, with optional time and purposes.
-    The default for time is the earliest registered TimeCode in the stage's animation.
-    The default for purpose tokens is ["default"], valid values are: default, proxy, render, guide.
+    Apply translation to first found translation operation in
     """
-    bbox_cache = UsdGeom.BBoxCache(time,purpose_tokens)
-    stage_root = stage.GetPseudoRoot()
-    return bbox_cache.ComputeWorldBound(stage_root).GetBox()
+    
+    from pxr.UsdGeom import XformOp
+    
+    cam_prim = camera.GetPrim()
+    xform_cam = UsdGeom.Xformable(cam_prim)
+    
+    translate_op = None
+    # check for existing translation operation, if not found, add one to stack.
+    for op in xform_cam.GetOrderedXformOps():
+        op: XformOp
+        if op.GetOpType() == XformOp.TypeTranslate:
+            translate_op = op
+            break
+    else:
+        translate_op = xform_cam.AddTranslateOp(XformOp.PrecisionDouble)
+
+    translate_op.Set(translation)
 
 def set_camera_clippingplanes_from_stage(camera: UsdGeom.Camera, stage: Usd.Stage,
                         bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None, 
@@ -82,8 +129,24 @@ def set_camera_clippingplanes_from_stage(camera: UsdGeom.Camera, stage: Usd.Stag
     clipping_planes = Gf.Vec2f(near_clip, far_clip)
     camera.GetClippingRangeAttr().Set(clipping_planes)
 
+def get_stage_boundingbox(stage: Usd.Stage, time: Usd.TimeCode = Usd.TimeCode.EarliestTime(), 
+                          purpose_tokens: list[str] = ["default"]) -> Gf.Range3d:
+    """
+    Caclulate a stage's bounding box, with optional time and purposes.
+    The default for time is the earliest registered TimeCode in the stage's animation.
+    The default for purpose tokens is ["default"], 
+    valid values are: default, proxy, render, guide.
+    """
+    bbox_cache = UsdGeom.BBoxCache(time,purpose_tokens)
+    stage_root = stage.GetPseudoRoot()
+    return bbox_cache.ComputeWorldBound(stage_root).GetBox()
+
 def calculate_camera_position(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_min: Gf.Vec3d = None, 
                               bounds_max: Gf.Vec3d = None, z_up: bool = None, distance: float = None) -> Gf.Vec3d:
+    """
+    Calculate the world position for the camera based off of the size of the stage and the camera attributes.
+    Bounds and distance can be calculated beforehand so 
+    """
     # Convenience. Life is short.
     if not bounds_min or not bounds_max:
         boundingbox = get_stage_boundingbox(stage)
@@ -95,8 +158,6 @@ def calculate_camera_position(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_m
 
     if distance is None:
         distance = calculate_stage_distance_to_camera(camera, stage, bounds_min, bounds_max, z_up)
-
-    centroid = (bounds_min + bounds_max) / 2
 
     # Suppose a scene with a cone,
     #             ..
@@ -113,6 +174,8 @@ def calculate_camera_position(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_m
     # (Y and X respectively, assuming y up)
     # and positioned back along the  with the calculated frustrum-filling distance along the depth axis,
     # (Z, assuming y up).
+    
+    centroid = (bounds_min + bounds_max) / 2
 
     if z_up:
         focus_point = Gf.Vec3d(centroid[0], bounds_min[1]-distance, centroid[2]) 

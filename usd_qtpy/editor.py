@@ -105,7 +105,7 @@ class EditorWindow(QtWidgets.QWidget):
         # Render menu
 
         render_menu = menubar.addMenu("Render")
-        render_labels = "Playblast", "Snapshot"
+        render_labels = "Playblast", "Snapshot", "Snapshot Framing Camera"
         render_actions = {label : render_menu.addAction(label) for label in render_labels}
 
         # Testing 
@@ -113,13 +113,23 @@ class EditorWindow(QtWidgets.QWidget):
         goal_file = R"C:\dump\playblastview##.##.png"
         
         def render_snapshot(stage, stageview, path):
+            from pxr import UsdGeom
+            print(UsdGeom.GetStageUpAxis(stage))
             # cam = render_util.playblast.camera_from_stageview(stage,stageview)
             # render_util.playblast.render_playblast(stage,path,"1",1920,cam,renderer="GL")
-            render_util.playblast.render_playblast(stage,path,"1",1920,renderer="GL")
+            render_util.playblast.render_playblast(stage, path, "1", 1920, renderer="GL")
 
         render_snap = partial(render_snapshot, self._stage, self._stageview, goal_file)
 
+        def snap_framingcam(stage):
+            from pxr import Sdf
+            framecam = render_util.create_framing_camera_in_stage(stage, Sdf.Path("/"))
+            render_util.playblast.render_playblast(stage,R"C:\dump\framingview##.##.png","1",1920,renderer="GL",camera = framecam)
+
+        add_framecam = partial(snap_framingcam, self._stage)
+
         render_actions["Snapshot"].triggered.connect(render_snap)
+        render_actions["Snapshot Framing Camera"].triggered.connect(add_framecam)
 
         layout = self.layout()
         layout.setMenuBar(menubar)

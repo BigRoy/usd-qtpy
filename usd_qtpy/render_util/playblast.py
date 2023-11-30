@@ -16,7 +16,7 @@ from pxr.Usdviewq.stageView import StageView
 
 from ..viewer import CustomStageView # Wrapper around Usdviewq's StageView
 
-import render_util.framing_camera
+from . import framing_camera
 
 def _setup_opengl_widget(width: int, height: int, samples: int = 4):
     """
@@ -135,6 +135,7 @@ def render_playblast(stage: Usd.Stage, outputpath: str, frames: str, width: int,
     # No Camera: Assume scene wide camera (same behavior as usdrecord)
     if not camera:
         # Same procedure as default for pxr.UsdAppUtils.cameraArgs.py
+        print("No cam specified, using PrimaryCamera")
         path = Sdf.Path(UsdUtils.GetPrimaryCameraName())
         camera = UsdAppUtils.GetCameraAtPath(stage, path)
 
