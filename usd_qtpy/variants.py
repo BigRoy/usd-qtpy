@@ -66,11 +66,13 @@ class VariantSetWidget(QtWidgets.QWidget):
         super(VariantSetWidget, self).__init__(parent=parent)
 
         self._listeners = []
+        self._last_variant_edit_target_set = None
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 13, 0, 0)
 
         self._variant_set = variant_set
+        self._stage = variant_set.GetPrim().GetStage()
         variant_set_name = variant_set.GetName()
 
         layout.addWidget(Separator(thickness=1))
@@ -104,6 +106,8 @@ class VariantSetWidget(QtWidgets.QWidget):
         self.grid_layout = grid_layout
         self.add_button = add_button
 
+        self.destroyed.connect(self.revoke_listeners)
+
     def refresh(self):
         # Clear all widgets in the grid layout
         def clear(layout: QtWidgets.QGridLayout):
@@ -124,12 +128,24 @@ class VariantSetWidget(QtWidgets.QWidget):
             self._add_variant(variant_name)
 
     def on_notice(self, notice, sender):
+        # TODO: We might want to 'schedule' a refresh with slight delay
+        #  to ensure we're not continuously updating during quick successive
+        #  edits
+        if isinstance(notice, Usd.Notice.StageEditTargetChanged):
+            self._last_variant_edit_target_set = None
         self.refresh()
 
     def showEvent(self, event):
         # Refresh once, then register listeners to stay sync
         self.refresh()
-        stage = self._variant_set.GetPrim().GetStage()
+        self.register_listeners()
+
+    def hideEvent(self, event):
+        self.revoke_listeners()
+
+    def register_listeners(self):
+        self.revoke_listeners()  # ensure cleaned up
+        stage = self._stage
         self._listeners.append(Tf.Notice.Register(
             Usd.Notice.StageEditTargetChanged,
             self.on_notice,
@@ -141,7 +157,7 @@ class VariantSetWidget(QtWidgets.QWidget):
             stage
         ))
 
-    def hideEvent(self, event):
+    def revoke_listeners(self):
         for listener in self._listeners:
             listener.Revoke()
         self._listeners.clear()
@@ -156,9 +172,13 @@ class VariantSetWidget(QtWidgets.QWidget):
         select_button.toggled.connect(partial(self.on_select_variant,
                                               variant_name))
 
+        # Apparently we can't easily detect whether the stage's current
+        # edit target would match the edit target from the variant
+        is_edit_target = self._last_variant_edit_target_set == variant_name
         set_edit_target_button = QtWidgets.QPushButton(get_icon("edit-2"), "")
         set_edit_target_button.setFixedWidth(20)
         set_edit_target_button.setCheckable(True)
+        set_edit_target_button.setChecked(is_edit_target)
         set_edit_target_button.toggled.connect(partial(self.on_set_edit_target,
                                                variant_name))
         delete_button = QtWidgets.QPushButton(get_icon("x"), "")
@@ -226,7 +246,7 @@ class VariantSetWidget(QtWidgets.QWidget):
         variant_set_name = self._variant_set.GetName()
         for prim_spec in prim.GetPrimStack():
             variant_set_spec = prim_spec.variantSets.get(variant_set_name)
-            if not variant_set_spec:
+            if variant_set_spec.expired or not variant_set_spec:
                 continue
 
             variant_spec = variant_set_spec.variants.get(variant_name)
@@ -236,9 +256,14 @@ class VariantSetWidget(QtWidgets.QWidget):
     def on_set_edit_target(self, variant_name, state):
         """Callback when a variant is set to be the edit target"""
 
-        stage = self._variant_set.GetPrim().GetStage()
+        self.revoke_listeners()
+
+        stage = self._stage
         if state:
             if self._variant_set.GetVariantSelection() != variant_name:
+                layer = stage.GetEditTarget().GetLayer()
+                edit_target = stage.GetEditTargetForLocalLayer(layer)
+                stage.SetEditTarget(edit_target)
                 self._variant_set.SetVariantSelection(variant_name)
 
             # For now don't allow authoring variants in variants in variants
@@ -248,16 +273,29 @@ class VariantSetWidget(QtWidgets.QWidget):
             layer = stage.GetEditTarget().GetLayer()
             edit_target = self._variant_set.GetVariantEditTarget(layer)
             stage.SetEditTarget(edit_target)
+            self._last_variant_edit_target_set = variant_name
         else:
             # Target the parent layer for current edit target
             current_edit_target = stage.GetEditTarget()
             layer = current_edit_target.GetLayer()
             edit_target = stage.GetEditTargetForLocalLayer(layer)
             stage.SetEditTarget(edit_target)
+            self._last_variant_edit_target_set = None
+
+        self.refresh()
+        self.register_listeners()
 
     def on_select_variant(self, variant_name, state):
         if not state:
             return
+
+        # Make sure we're not target editing inside a variant since it's
+        # most likely not what the artist wants and can be confusing
+        stage = self._stage
+        edit_target = stage.GetEditTarget()
+        new_target = stage.GetEditTargetForLocalLayer(edit_target.GetLayer())
+        if new_target != edit_target:
+            stage.SetEditTarget(new_target)
 
         if self._variant_set.GetVariantSelection() != variant_name:
             self._variant_set.SetVariantSelection(variant_name)
