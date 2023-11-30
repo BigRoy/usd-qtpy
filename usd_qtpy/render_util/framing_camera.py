@@ -183,11 +183,11 @@ def calculate_camera_position(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_m
     centroid = (bounds_min + bounds_max) / 2
 
     if z_up:
-        focus_point = Gf.Vec3d(centroid[0], bounds_min[1]-distance, centroid[2]) 
+        camera_position = Gf.Vec3d(centroid[0], bounds_min[1]-distance, centroid[2]) 
     else:
-        focus_point = Gf.Vec3d(centroid[0], centroid[1], bounds_max[2] + distance)
+        camera_position = Gf.Vec3d(centroid[0], centroid[1], bounds_max[2] + distance)
 
-    return focus_point
+    return camera_position
 
 def calculate_stage_distance_to_camera(camera: UsdGeom.Camera, stage: Usd.Stage, 
                                        bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None, 
