@@ -7,7 +7,7 @@ from .lib.usd import get_prim_types_by_group
 from .prim_delegate import DrawRectsDelegate
 from .prim_hierarchy_model import HierarchyModel
 from .references import ReferenceListWidget
-from .variants import CreateVariantSetDialog
+from .variants import CreateVariantSetDialog, VariantSetsWidget
 
 
 class View(QtWidgets.QTreeView):
@@ -162,7 +162,10 @@ class View(QtWidgets.QTreeView):
             self.on_manage_prim_reference_payload(prim)
 
         elif text == "VAR":
-            raise NotImplementedError("To be implemented")
+            prim = index.data(HierarchyModel.PrimRole)
+            widget = VariantSetsWidget(prim=prim, parent=self)
+            widget.resize(250, 100)
+            widget.show()
 
 
 class HierarchyWidget(QtWidgets.QDialog):
