@@ -10,6 +10,11 @@ from .lib.qt import DropFilesPushButton
 from .prim_hierarchy_model import HierarchyModel
 
 
+def get_applied_items(list_proxy):
+    """Backwards compatible equivalent of `GetAppliedItems()`"""
+    return list_proxy.ApplyEditsToList([])
+
+
 class PickPrimPath(QtWidgets.QDialog):
 
     picked_path = QtCore.Signal(Sdf.Path)
@@ -282,10 +287,8 @@ class ReferenceListWidget(QtWidgets.QDialog):
         references = []
         payloads = []
         for prim_spec in stack:
-            for reference in prim_spec.referenceList.GetAppliedItems():
-                references.append(reference)
-            for payload in prim_spec.payloadList.GetAppliedItems():
-                payloads.append(payload)
+            references.extend(get_applied_items(prim_spec.referenceList))
+            payloads.extend(get_applied_items(prim_spec.payloadList))
 
         for reference in references:
             self._add_widget(self.references_layout, item=reference)
