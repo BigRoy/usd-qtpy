@@ -4,6 +4,7 @@
 # NOTES:
 # pxr.UsdViewq.ExportFreeCameraToStage will export the camera from the view (a FreeCamera/ pxr.Gf.Camera, purely OpenGL)
 import logging
+import sys
 from typing import Union
 from collections.abc import Generator
 
@@ -91,7 +92,7 @@ def check_renderplugin_name(enginestr: str) -> Union[str, None]:
 
 def render_playblast(stage: Usd.Stage, outputpath: str, frames: str, width: int, 
                     camera: UsdGeom.Camera = None, complexity: Union[str,int] = "High",
-                    renderer: str = "GL", colormode: str = "sRGB"): 
+                    renderer: str = None, colormode: str = "sRGB"): 
     from pxr.UsdAppUtils.framesArgs import FrameSpecIterator, ConvertFramePlaceholderToFloatSpec
     from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
     from pxr import UsdUtils
@@ -116,6 +117,15 @@ def render_playblast(stage: Usd.Stage, outputpath: str, frames: str, width: int,
         complex_level = Complex._ordered[complexity]
 
     complex_level = complex_level.value
+
+    # deduce default renderer based on platform if not specified.
+    if renderer is None:
+        if (os := sys.platform) == "nt" or os == "win32":
+            renderer = "GL"
+        elif os == "darwin":
+            renderer = "Metal"
+        else:
+            renderer = "GL"
 
     # validate render engine
     if not check_renderplugin_name(renderer):

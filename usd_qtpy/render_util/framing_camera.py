@@ -83,7 +83,7 @@ def set_camera_clippingplanes_from_stage(camera: UsdGeom.Camera, stage: Usd.Stag
     camera.GetClippingRangeAttr().Set(clipping_planes)
 
 def calculate_camera_position(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_min: Gf.Vec3d = None, 
-                              bounds_max: Gf.Vec3d = None, z_up: bool = None, distance: float = None):
+                              bounds_max: Gf.Vec3d = None, z_up: bool = None, distance: float = None) -> Gf.Vec3d:
     # Convenience. Life is short.
     if not bounds_min or not bounds_max:
         boundingbox = get_stage_boundingbox(stage)
@@ -110,9 +110,9 @@ def calculate_camera_position(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_m
     #                  of the scene the camera is pointed at.
     #
     # The center of the camera will be positioned at the center of the vertical and horizontal axis, 
-    # (Y and X respectively) (assuming y up)
+    # (Y and X respectively, assuming y up)
     # and positioned back along the  with the calculated frustrum-filling distance along the depth axis,
-    # (Z assuming y up).
+    # (Z, assuming y up).
 
     if z_up:
         focus_point = Gf.Vec3d(centroid[0], bounds_min[1]-distance, centroid[2]) 
