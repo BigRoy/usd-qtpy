@@ -123,7 +123,7 @@ class EditorWindow(QtWidgets.QWidget):
 
         def snap_framingcam(stage):
             from pxr import Sdf
-            framecam = render_util.create_framing_camera_in_stage(stage, Sdf.Path("/"))
+            framecam = render_util.create_framing_camera_in_stage(stage, Sdf.Path("/"),fit = 1.1)
             render_util.playblast.render_playblast(stage,R"C:\dump\framingview##.##.png","1",1920,renderer="GL",camera = framecam)
 
         add_framecam = partial(snap_framingcam, self._stage)

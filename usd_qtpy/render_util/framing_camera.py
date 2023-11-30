@@ -11,7 +11,12 @@ def _stage_up(stage: Usd.Stage) -> str:
     return UsdGeom.GetStageUpAxis(stage)
 
 def create_framing_camera_in_stage(stage: Usd.Stage, root: Sdf.Path, 
-                                   name: str = "framingCam", width: int = 16, height: int = 9) -> UsdGeom.Camera:
+                                   name: str = "framingCam", fit: float = 1 ,
+                                   width: int = 16, height: int = 9) -> UsdGeom.Camera:
+    """
+    Adds a camera that frames the whole stage.
+    Can be specified to have a different aspect ratio, this will affect the sensor size internally.
+    """
     # create camera
     camera = create_perspective_camera_in_stage(stage, root, name, width, height)
 
@@ -22,7 +27,7 @@ def create_framing_camera_in_stage(stage: Usd.Stage, root: Sdf.Path,
 
     z_up = (_stage_up(stage) == "Z")
 
-    distance_to_stage = calculate_stage_distance_to_camera(camera, stage, bounds_min, bounds_max, z_up)
+    distance_to_stage = calculate_stage_distance_to_camera(camera, stage, bounds_min, bounds_max, z_up, fit)
 
     # setup attributes in camera
     set_camera_clippingplanes_from_stage(camera, stage, bounds_min, bounds_max, z_up, distance_to_stage)
@@ -185,7 +190,8 @@ def calculate_camera_position(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_m
     return focus_point
 
 def calculate_stage_distance_to_camera(camera: UsdGeom.Camera, stage: Usd.Stage, 
-                                       bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None, z_up: bool = None) -> float:
+                                       bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None, 
+                                       z_up: bool = None, fit: float = 1) -> float:
     """
     Calculates a distance from the centroid of the stage that would allow a camera to frame it perfectly.
     Returns distance in stage units.
@@ -212,8 +218,8 @@ def calculate_stage_distance_to_camera(camera: UsdGeom.Camera, stage: Usd.Stage,
     
     # calculate capture size. the sensor size was given in mm (24 mm sensor) 
     # so we need to pass in cm units from the scene as mm units for correct calculation. 
-    capturesize_hor = calculate_perspective_distance(d_hor * 10, fov_hor)
-    capturesize_ver = calculate_perspective_distance(d_ver * 10, fov_ver)
+    capturesize_hor = calculate_perspective_distance(d_hor * 10, fov_hor, fit)
+    capturesize_ver = calculate_perspective_distance(d_ver * 10, fov_ver, fit)
 
     # return units back to cm on return
     return max(capturesize_hor, capturesize_ver) / 10
@@ -234,7 +240,7 @@ def calculate_field_of_view(focal_length, sensor_size) -> float:
     # This expression is rewritten as 2 * atan(h * (2 * f)), this is mathematically the same.
     return 2 * math.atan(sensor_size / (2 * focal_length))
 
-def calculate_perspective_distance(subject_size, field_of_view) -> float:
+def calculate_perspective_distance(subject_size, field_of_view, fit: float = 1) -> float:
     """
     Calculate appropriate distance towards the subject, so it can fill the view.
     Essentially, the inverse of calculate_field_of_view.
@@ -247,5 +253,5 @@ def calculate_perspective_distance(subject_size, field_of_view) -> float:
     # 
     # The field of view is also divided in half, because the whole FOV represents the apex
     # angle of the isosceles traingle.
-
+    subject_size *= fit
     return (subject_size / 2) / math.tan(field_of_view / 2)
