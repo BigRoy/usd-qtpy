@@ -10,6 +10,38 @@ from .resources import get_icon
 log = logging.getLogger(__name__)
 
 
+def is_direct_variant_edit_target(
+    edit_target: Usd.EditTarget,
+    variant_set: Usd.VariantSet,
+    variant_name: str
+) -> bool:
+    """Return whether edit target targets the variant set's variant.
+
+    It does not care on which layer it is targeting and whether the prim
+    even or its variant sets even exist on that layer.
+
+    This would return true for edit targets that were made directly on the
+    layer, using e.g.:
+        >>> Usd.EditTarget.ForLocalDirectVariant(layer, variant_path)
+    Or:
+        >>> layer_edit_target = stage.GetEditTargetForLocalLayer(layer)
+        >>> stage.SetEditTarget(layer_edit_target)
+        >>> variant_edit_target = variant_set.GetVariantEditContext(layer)
+
+    See: https://forum.aousd.org/t/query-whether-stage-edit-target-is-targeting-a-particular-variant  # noqa
+
+    """
+    edit_target_mapping = edit_target.GetMapFunction()
+    if edit_target_mapping.isIdentityPathMapping:
+        # This is not mapping any variants
+        return False
+
+    prim = variant_set.GetPrim()
+    variant_path = prim.GetPath().AppendVariantSelection(variant_set.GetName(),
+                                                         variant_name)
+    return variant_path in edit_target_mapping.sourceToTargetMap
+
+
 class CreateVariantSetDialog(QtWidgets.QDialog):
     """Prompt for variant set name"""
     def __init__(self, parent=None):
@@ -66,14 +98,12 @@ class VariantSetWidget(QtWidgets.QWidget):
         super(VariantSetWidget, self).__init__(parent=parent)
 
         self._listeners = []
-        self._last_variant_edit_target_set = None
+        self._variant_set: Usd.VariantSet = variant_set
+        self._stage: Usd.Stage = variant_set.GetPrim().GetStage()
+        variant_set_name = variant_set.GetName()
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 13, 0, 0)
-
-        self._variant_set = variant_set
-        self._stage = variant_set.GetPrim().GetStage()
-        variant_set_name = variant_set.GetName()
 
         layout.addWidget(Separator(thickness=1))
         header_layout = QtWidgets.QHBoxLayout()
@@ -131,8 +161,6 @@ class VariantSetWidget(QtWidgets.QWidget):
         # TODO: We might want to 'schedule' a refresh with slight delay
         #  to ensure we're not continuously updating during quick successive
         #  edits
-        if isinstance(notice, Usd.Notice.StageEditTargetChanged):
-            self._last_variant_edit_target_set = None
         self.refresh()
 
     def showEvent(self, event):
@@ -166,21 +194,27 @@ class VariantSetWidget(QtWidgets.QWidget):
         grid_layout = self.grid_layout
         row = grid_layout.rowCount()
 
+        # Select variant radio button
         select_button = QtWidgets.QRadioButton(variant_name)
         is_selected = self._variant_set.GetVariantSelection() == variant_name
         select_button.setChecked(is_selected)
         select_button.toggled.connect(partial(self.on_select_variant,
                                               variant_name))
 
-        # Apparently we can't easily detect whether the stage's current
-        # edit target would match the edit target from the variant
-        is_edit_target = self._last_variant_edit_target_set == variant_name
+        # Set edit target button
+        is_edit_target = is_direct_variant_edit_target(
+            edit_target=self._stage.GetEditTarget(),
+            variant_set=self._variant_set,
+            variant_name=variant_name
+        )
         set_edit_target_button = QtWidgets.QPushButton(get_icon("edit-2"), "")
         set_edit_target_button.setFixedWidth(20)
         set_edit_target_button.setCheckable(True)
         set_edit_target_button.setChecked(is_edit_target)
         set_edit_target_button.toggled.connect(partial(self.on_set_edit_target,
                                                variant_name))
+
+        # Delete button
         delete_button = QtWidgets.QPushButton(get_icon("x"), "")
         delete_button.setFixedWidth(20)
         delete_button.clicked.connect(partial(self.on_delete_variant,
@@ -259,9 +293,16 @@ class VariantSetWidget(QtWidgets.QWidget):
         self.revoke_listeners()
 
         stage = self._stage
+
+        # We keep the same target layer as current edit target
+        current_edit_target = stage.GetEditTarget()
+        layer = current_edit_target.GetLayer()
+
         if state:
             if self._variant_set.GetVariantSelection() != variant_name:
-                layer = stage.GetEditTarget().GetLayer()
+                # We force the variant selection in the target layer
+                # so that the variant selection itself is not an opinion
+                # any variant edit target mapping that might be active
                 edit_target = stage.GetEditTargetForLocalLayer(layer)
                 stage.SetEditTarget(edit_target)
                 self._variant_set.SetVariantSelection(variant_name)
@@ -270,18 +311,22 @@ class VariantSetWidget(QtWidgets.QWidget):
             # because it's complex to define how that edit context should
             # be visualized
             # TODO: Support editing in nested variant edit contexts
-            layer = stage.GetEditTarget().GetLayer()
-            edit_target = self._variant_set.GetVariantEditTarget(layer)
+            layer = stage.GetEditTarget().GetLayer()  # preserve target layer
+            prim = self._variant_set.GetPrim()
+            variant_set_name = self._variant_set.GetName()
+            variant_path = prim.GetPath().AppendVariantSelection(
+                variant_set_name,
+                variant_name
+            )
+            edit_target = Usd.EditTarget.ForLocalDirectVariant(layer,
+                                                               variant_path)
             stage.SetEditTarget(edit_target)
-            self._last_variant_edit_target_set = variant_name
         else:
-            # Target the parent layer for current edit target
-            current_edit_target = stage.GetEditTarget()
-            layer = current_edit_target.GetLayer()
             edit_target = stage.GetEditTargetForLocalLayer(layer)
             stage.SetEditTarget(edit_target)
-            self._last_variant_edit_target_set = None
 
+        # Refresh once instead of during live changes as we tweak the
+        # edit targets and variant selections, etc.
         self.refresh()
         self.register_listeners()
 
