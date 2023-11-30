@@ -243,6 +243,10 @@ class VariantSetWidget(QtWidgets.QWidget):
                 if index != -1:
                     del list_proxy[index]
 
+            # Remove variant selection opinion
+            if variant_set_name in prim_spec.variantSelections:
+                del prim_spec.variantSelections[variant_set_name]
+
         self.variant_set_deleted.emit()
 
     def on_add_variant(self):
@@ -286,6 +290,12 @@ class VariantSetWidget(QtWidgets.QWidget):
             variant_spec = variant_set_spec.variants.get(variant_name)
             if variant_spec:
                 variant_set_spec.RemoveVariant(variant_spec)
+
+            # Also remove the variant selection if it's set to the removed
+            # variant
+            selected = prim_spec.variantSelections.get(variant_set_name)
+            if variant_name == selected:
+                del prim_spec.variantSelections[variant_set_name]
 
     def on_set_edit_target(self, variant_name, state):
         """Callback when a variant is set to be the edit target"""
