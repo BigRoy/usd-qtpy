@@ -113,8 +113,8 @@ class EditorWindow(QtWidgets.QWidget):
         goal_file = R"C:\dump\playblastview##.##.png"
         
         def render_snapshot(stage, stageview, path):
-            # cam = render_util.playblast.cameraFromView(stage,stageview)
-            # render_util.playblast.renderPlayblast(stage,path,"1",1920,cam,renderer="GL")
+            # cam = render_util.playblast.camera_from_stageview(stage,stageview)
+            # render_util.playblast.render_playblast(stage,path,"1",1920,cam,renderer="GL")
             render_util.playblast.render_playblast(stage,path,"1",1920,renderer="GL")
 
         render_snap = partial(render_snapshot, self._stage, self._stageview, goal_file)

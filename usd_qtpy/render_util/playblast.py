@@ -13,8 +13,9 @@ from pxr import UsdAppUtils
 from pxr import Tf, Sdf
 from pxr.Usdviewq.stageView import StageView
 
-from ..viewer import CustomStageView
+from ..viewer import CustomStageView # Wrapper around Usdviewq's StageView
 
+import render_util.framing_camera
 
 def _setup_opengl_widget(width: int, height: int, samples: int = 4):
     """
@@ -41,6 +42,7 @@ def iter_stage_cameras(stage: Usd.Stage, TraverseAll = True) -> Generator[UsdGeo
     Return a generator of all camera primitives.
     TraverseAll is on by default. This means that inactive cameras will also be shown.
     """
+    # Ref on differences between traversal functions: https://openusd.org/dev/api/class_usd_stage.html#adba675b55f41cc1b305bed414fc4f178 
 
     if TraverseAll:
         gen = stage.TraverseAll()
