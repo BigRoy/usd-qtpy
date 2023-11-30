@@ -291,6 +291,10 @@ class StageSdfModel(TreeModel):
             item = index.data(TreeModel.ItemRole)
             return item.get("icon")
 
+        if role == QtCore.Qt.ToolTipRole:
+            item = index.data(TreeModel.ItemRole)
+            return item.get("path")
+
         return super(StageSdfModel, self).data(index, role)
 
 
