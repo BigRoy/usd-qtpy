@@ -57,7 +57,8 @@ def get_stage_boundingbox(stage: Usd.Stage, time: Usd.TimeCode = Usd.TimeCode.Ea
     return bbox_cache.ComputeWorldBound(stage_root).GetBox()
 
 def set_camera_clippingplanes_from_stage(camera: UsdGeom.Camera, stage: Usd.Stage,
-                        bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None, z_up: bool = None):
+                        bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None, 
+                        z_up: bool = None, distance: float = None):
     """
     Set internal camera clipping plane attributes to fit the stage.
     """   
@@ -66,17 +67,59 @@ def set_camera_clippingplanes_from_stage(camera: UsdGeom.Camera, stage: Usd.Stag
         boundingbox = get_stage_boundingbox(stage)
         bounds_min, bounds_max = boundingbox.GetMin(), boundingbox.GetMax()
     
+    # Explicit None checks for values that can be False or 0
     if z_up is None:
         z_up = (_stage_up(stage) == "Z")
 
-    distance = calculate_stage_distance_to_camera(camera, stage, bounds_min, bounds_max, z_up)
+    if distance is None:
+        distance = calculate_stage_distance_to_camera(camera, stage, bounds_min, bounds_max, z_up)
 
     ver_idx = 2 if z_up else 1
 
+    # expand clipping planes out a bit.
     near_clip = max((distance + bounds_min[ver_idx]) * 0.5, 0.0000001)
     far_clip = (distance + bounds_max[ver_idx]) * 2
     clipping_planes = Gf.Vec2f(near_clip, far_clip)
     camera.GetClippingRangeAttr().Set(clipping_planes)
+
+def calculate_camera_position(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_min: Gf.Vec3d = None, 
+                              bounds_max: Gf.Vec3d = None, z_up: bool = None, distance: float = None):
+    # Convenience. Life is short.
+    if not bounds_min or not bounds_max:
+        boundingbox = get_stage_boundingbox(stage)
+        bounds_min, bounds_max = boundingbox.GetMin(), boundingbox.GetMax()
+    
+    # Explicit None checks for values that can be False or 0
+    if z_up is None:
+        z_up = (_stage_up(stage) == "Z")
+
+    if distance is None:
+        distance = calculate_stage_distance_to_camera(camera, stage, bounds_min, bounds_max, z_up)
+
+    centroid = (bounds_min + bounds_max) / 2
+
+    # Suppose a scene with a cone,
+    #             ..
+    #          ../  |    /\
+    #  O O    /     |   /  \
+    # [cam]<| ------|  /I am\
+    #         \..   | / cone \
+    #            \..|/ fear me\
+    #               ^       
+    #               |- The focus plane will be here, at the closest depth of the bounds
+    #                  of the scene the camera is pointed at.
+    #
+    # The center of the camera will be positioned at the center of the vertical and horizontal axis, 
+    # (Y and X respectively) (assuming y up)
+    # and positioned back along the  with the calculated frustrum-filling distance along the depth axis,
+    # (Z assuming y up).
+
+    if z_up:
+        focus_point = Gf.Vec3d(centroid[0], bounds_min[1]-distance, centroid[2]) 
+    else:
+        focus_point = Gf.Vec3d(centroid[0], centroid[1], bounds_max[2] + distance)
+
+    return focus_point
 
 def calculate_stage_distance_to_camera(camera: UsdGeom.Camera, stage: Usd.Stage, 
                                        bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None, z_up: bool = None) -> float:
