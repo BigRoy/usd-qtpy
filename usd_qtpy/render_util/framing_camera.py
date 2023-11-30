@@ -15,11 +15,13 @@ from pxr import Tf, Sdf, Gf
 def _stage_up(stage: Usd.Stage) -> str:
     return UsdGeom.GetStageUpAxis(stage)
 
-def create_framing_camera_in_stage(stage: Usd.Stage, root: Sdf.Path, name: str = "framingCam", width: int = 16, height: int = 9) -> UsdGeom.Camera:
+def create_framing_camera_in_stage(stage: Usd.Stage, root: Sdf.Path, 
+                                   name: str = "framingCam", width: int = 16, height: int = 9) -> UsdGeom.Camera:
     ...
 
 
-def create_perspective_camera_in_stage(stage: Usd.Stage, root: Sdf.Path, name: str = "perspectiveCam", width: int = 16, height: int = 9) -> UsdGeom.Camera:
+def create_perspective_camera_in_stage(stage: Usd.Stage, root: Sdf.Path, 
+                                       name: str = "perspectiveCam", width: int = 16, height: int = 9) -> UsdGeom.Camera:
     """
     Creates a camera in the scene with a certain sensor size. 
     Defaults to 16:9 aspect ratio.
@@ -43,7 +45,8 @@ def create_perspective_camera_in_stage(stage: Usd.Stage, root: Sdf.Path, name: s
 
     return camera
 
-def get_stage_boundingbox(stage: Usd.Stage, time: Usd.TimeCode = Usd.TimeCode.EarliestTime(), purpose_tokens: list[str] = ["default"]) -> Gf.Range3d:
+def get_stage_boundingbox(stage: Usd.Stage, time: Usd.TimeCode = Usd.TimeCode.EarliestTime(), 
+                          purpose_tokens: list[str] = ["default"]) -> Gf.Range3d:
     """
     Caclulate a stage's bounding box, with optional time and purposes.
     The default for time is the earliest registered TimeCode in the stage's animation.
@@ -53,24 +56,41 @@ def get_stage_boundingbox(stage: Usd.Stage, time: Usd.TimeCode = Usd.TimeCode.Ea
     stage_root = stage.GetPseudoRoot()
     return bbox_cache.ComputeWorldBound(stage_root).GetBox()
 
-def set_camera_clipping(stage: Usd.Stage ,camera: UsdGeom.Camera, boundingbox: Gf.Range3d = None):
-    if not boundingbox:
+def set_camera_clippingplanes_from_stage(camera: UsdGeom.Camera, stage: Usd.Stage,
+                        bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None, z_up: bool = None):
+    """
+    Set internal camera clipping plane attributes to fit the stage.
+    """   
+    # Convenience. Life is short.
+    if not bounds_min or not bounds_max:
         boundingbox = get_stage_boundingbox(stage)
+        bounds_min, bounds_max = boundingbox.GetMin(), boundingbox.GetMax()
     
-    bounds_min, bounds_max = boundingbox.GetMin(), boundingbox.GetMax()
-    # to be continued
-    ...
+    if z_up is None:
+        z_up = (_stage_up(stage) == "Z")
 
-def calculate_stage_distance_to_camera(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None) -> float:
+    distance = calculate_stage_distance_to_camera(camera, stage, bounds_min, bounds_max, z_up)
+
+    ver_idx = 2 if z_up else 1
+
+    near_clip = max((distance + bounds_min[ver_idx]) * 0.5, 0.0000001)
+    far_clip = (distance + bounds_max[ver_idx]) * 2
+    clipping_planes = Gf.Vec2f(near_clip, far_clip)
+    camera.GetClippingRangeAttr().Set(clipping_planes)
+
+def calculate_stage_distance_to_camera(camera: UsdGeom.Camera, stage: Usd.Stage, 
+                                       bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None, z_up: bool = None) -> float:
     """
     Calculates a distance from the centroid of the stage that would allow a camera to frame it perfectly.
+    Returns distance in stage units.
     """
     # Convenience. Life is short.
     if not bounds_min or not bounds_max:
         boundingbox = get_stage_boundingbox(stage)
         bounds_min, bounds_max = boundingbox.GetMin(), boundingbox.GetMax()
     
-    z_up = (_stage_up(stage) == "Z")
+    if z_up is None:
+        z_up = (_stage_up(stage) == "Z")
 
     focal_length = camera.GetFocalLengthAttr().Get()
     hor_aperture = camera.GetHorizontalApertureAttr().Get()
@@ -89,7 +109,8 @@ def calculate_stage_distance_to_camera(camera: UsdGeom.Camera, stage: Usd.Stage,
     capturesize_hor = calculate_perspective_distance(d_hor * 10, fov_hor)
     capturesize_ver = calculate_perspective_distance(d_ver * 10, fov_ver)
 
-    return max(capturesize_hor, capturesize_ver)
+    # return units back to cm on return
+    return max(capturesize_hor, capturesize_ver) / 10
 
 def calculate_field_of_view(focal_length, sensor_size) -> float:
     # Math : https://sdk-forum.dji.net/hc/en-us/articles/11317874071065-How-to-calculate-the-FoV-of-the-camera-lens-
