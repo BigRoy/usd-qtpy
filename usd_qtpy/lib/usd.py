@@ -225,7 +225,12 @@ def remove_spec(spec):
         del spec.owner.properties[spec.name]
 
     elif isinstance(spec, Sdf.VariantSetSpec):
+        # Owner is Sdf.PrimSpec (or can also be Sdf.VariantSpec)
         del spec.owner.variantSets[spec.name]
+
+    elif isinstance(spec, Sdf.VariantSpec):
+        # Owner is Sdf.VariantSetSpec
+        spec.owner.RemoveVariant(spec)
 
     else:
         raise TypeError(f"Unsupported spec type: {spec}")
