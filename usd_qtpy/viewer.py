@@ -301,12 +301,9 @@ class Widget(QtWidgets.QWidget):
         group = QtWidgets.QActionGroup(menu)
         group.setExclusive(True)
         for mode in common.RenderModes:
-            action = QtWidgets.QAction(
-                mode,
-                checkable=True,
-                checked=self.model.viewSettings.renderMode == mode
-            )
-            shading_menu.addAction(action)
+            action = shading_menu.addAction(mode)
+            action.setCheckable(True)
+            action.setChecked(self.model.viewSettings.renderMode == mode)
             group.addAction(action)
         group.triggered.connect(set_rendermode)
         # TODO: Set view settings
@@ -314,14 +311,11 @@ class Widget(QtWidgets.QWidget):
         purpose_menu = menu.addMenu("Display Purpose")
         for purpose in ["Guide", "Proxy", "Render"]:
             key = f"display{purpose}"
-            state = getattr(self.model.viewSettings, key) == purpose
-            action = QtWidgets.QAction(
-                purpose,
-                checkable=True,
-                checked=state)
-            purpose_menu.addAction(action)
-            action.triggered.connect(
-                partial(setattr, self.model.viewSettings, key, not state)
+            action = purpose_menu.addAction(purpose)
+            action.setCheckable(True)
+            action.setChecked(getattr(self.model.viewSettings, key) == purpose)
+            action.toggled.connect(
+                partial(setattr, self.model.viewSettings, key)
             )
 
         # help(self.model.viewSettings)
@@ -359,14 +353,17 @@ class Widget(QtWidgets.QWidget):
         camera_menu = menu.addMenu("Camera")
         fit = camera_menu.addAction("Fit to view")
         fit.triggered.connect(partial(self.view.resetCam, 2.0))
+        current_camera_prim = self.model.viewSettings.cameraPrim
         free_cam = camera_menu.addAction("<Free camera>")
+        free_cam.setCheckable(True)
+        free_cam.setChecked(not current_camera_prim)
         free_cam.triggered.connect(self.view.switchToFreeCamera)
         for cam in cameras:
             cam_path = str(cam.GetPath())
 
             action = QtGui.QAction(cam_path, camera_menu)
             action.setCheckable(True)
-            action.setChecked(self.model.viewSettings.cameraPrim == cam)
+            action.setChecked(current_camera_prim == cam)
             action.triggered.connect(partial(self.set_camera, cam))
 
             camera_menu.addAction(action)
@@ -399,16 +396,12 @@ class Widget(QtWidgets.QWidget):
         # TODO: Expose renderer specific settings like USD view does?
 
         aov_menu = menu.addMenu("Renderer AOV")
-        current_aov = None
+        current_aov = self.view.rendererAovName
         for aov in self.view.GetRendererAovs():
-            action = aov_menu.addAction(
-                aov,
-                checkable=True,
-                checked=aov == current_aov
-            )
-            action.triggered.connect(
-                partial(self.view.SetRendererAov, aov)
-            )
+            action = aov_menu.addAction(aov)
+            action.setCheckable(True)
+            action.setChecked(aov == current_aov)
+            action.triggered.connect(partial(self.view.SetRendererAov, aov))
         if not aov_menu.actions():
             aov_menu.setEnabled(False)
 
