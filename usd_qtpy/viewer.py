@@ -6,6 +6,7 @@ from qtpy import QtWidgets, QtCore, QtGui
 from pxr import Usd, UsdGeom, Tf
 from pxr.Usdviewq.stageView import StageView
 from pxr.Usdviewq import common
+from pxr.UsdAppUtils.complexityArgs import RefinementComplexities
 
 try:
     # Use C++ implementation of USD View
@@ -309,6 +310,19 @@ class Widget(QtWidgets.QWidget):
             shading_menu.addAction(action)
             group.addAction(action)
         group.triggered.connect(set_rendermode)
+
+        # Complexity
+        complexity_menu = menu.addMenu("Complexity")
+        current_complexity_name = self.model.viewSettings.complexity.name
+        for complexity in RefinementComplexities.ordered():
+            action = complexity_menu.addAction(complexity.name)
+            action.setCheckable(True)
+            action.setChecked(complexity.name == current_complexity_name)
+            def set_complexity(complexity):
+                self.model.viewSettings.complexity = complexity
+
+            action.triggered.connect(partial(set_complexity, complexity))
+
         # TODO: Set view settings
 
         purpose_menu = menu.addMenu("Display Purpose")
