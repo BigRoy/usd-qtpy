@@ -18,7 +18,7 @@ def is_direct_variant_edit_target(
     """Return whether edit target targets the variant set's variant.
 
     It does not care on which layer it is targeting and whether the prim
-    even or its variant sets even exist on that layer.
+    or its variant sets even exist on that layer.
 
     This would return true for edit targets that were made directly on the
     layer, using e.g.:
