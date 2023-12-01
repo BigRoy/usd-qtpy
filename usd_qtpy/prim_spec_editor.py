@@ -366,13 +366,14 @@ class FilterListWidget(QtWidgets.QListWidget):
         tooltips = {
             "Layer": "A single <b>Layer</b> in the stage.",
             "PrimSpec": "A <b>Prim</b> description",
-            "AttributeSpec": "A property that holds typed data.",
             "reference": "Represents a reference.",
             "payload": (
                 "Represents a payload.<br>"
                 "Payloads are similar to prim references with the major "
                 "difference that payloads are explicitly loaded by the user."
             ),
+            "relocates": "Namespace relocations specified on a prim",
+            "AttributeSpec": "A property that holds typed data.",
             "RelationshipSpec": (
                 "A property that contains a reference to "
                 "one or more prim specs."
