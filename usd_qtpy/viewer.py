@@ -313,7 +313,7 @@ class Widget(QtWidgets.QWidget):
             key = f"display{purpose}"
             action = purpose_menu.addAction(purpose)
             action.setCheckable(True)
-            action.setChecked(getattr(self.model.viewSettings, key) == purpose)
+            action.setChecked(getattr(self.model.viewSettings, key))
             action.toggled.connect(
                 partial(setattr, self.model.viewSettings, key)
             )
