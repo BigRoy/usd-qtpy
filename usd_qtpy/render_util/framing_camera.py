@@ -12,8 +12,8 @@ def _stage_up(stage: Usd.Stage) -> str:
     return UsdGeom.GetStageUpAxis(stage)
 
 def create_framing_camera_in_stage(stage: Usd.Stage, root: Union[Sdf.Path,str], 
-                                   name: str = "framingCam", fit: float = 1 ,
-                                   width: int = 16, height: int = 9) -> UsdGeom.Camera:
+                                   name: str = "framingCam", fit: float = 1,
+                                   width: int = 16, height: int = 9, for_turntable: bool = False) -> UsdGeom.Camera:
     """
     Adds a camera that frames the whole stage.
     Can be specified to have a different aspect ratio, this will affect the sensor size internally.
@@ -28,6 +28,8 @@ def create_framing_camera_in_stage(stage: Usd.Stage, root: Union[Sdf.Path,str],
     bounds = get_stage_boundingbox(stage)
     bounds_min, bounds_max = bounds.GetMin(), bounds.GetMax()
 
+    centroid = (bounds_min + bounds_max) / 2
+
     z_up = (_stage_up(stage) == "Z")
 
     distance_to_stage = calculate_stage_distance_to_camera(camera, stage, bounds_min, bounds_max, z_up, fit)
@@ -37,6 +39,14 @@ def create_framing_camera_in_stage(stage: Usd.Stage, root: Union[Sdf.Path,str],
 
     translation = calculate_camera_position(camera, stage, bounds_min, bounds_max, z_up, distance_to_stage)
 
+    # set center point to vertical axis center, depth axis placed back to frame without bounds compensation, 
+    # and the tangential axis to 0 
+    if for_turntable:
+        if z_up:
+            translation = Gf.Vec3d(0, translation[1] + centroid[1], translation[2])
+        else:
+            translation = Gf.Vec3d(0, translation[1], translation[2] - centroid[2])
+    
     # translate THEN rotate. Translation is always done locally. 
     # If this needs to be switched around, swizzle translation Vec3d.
 

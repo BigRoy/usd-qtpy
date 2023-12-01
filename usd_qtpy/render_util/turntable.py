@@ -51,7 +51,7 @@ def create_turntable_xform(stage: Usd.Stage, path: Union[Sdf.Path, str], name: s
 
 
 def create_turntable_camera(stage: Usd.Stage, root: Union[Sdf.Path,str], 
-                            name: str = "turntableCam", fit: float = 1.3,
+                            name: str = "turntableCam", fit: float = 1.1,
                             width: int = 16, height: int = 9, length: int = 100, frame_start: int = 0) -> UsdGeom.Camera:
     """
     Creates a complete setup with a stage framing perspective camera, within an animated, rotating Xform.
@@ -62,7 +62,7 @@ def create_turntable_camera(stage: Usd.Stage, root: Union[Sdf.Path,str],
     xform = create_turntable_xform(stage,root,length=length,frame_start=frame_start)
     xform_path = xform.GetPath()
 
-    cam = framing_camera.create_framing_camera_in_stage(stage,xform_path,name,fit,width,height)
+    cam = framing_camera.create_framing_camera_in_stage(stage,xform_path,name,fit,width,height,True)
 
     return cam
 

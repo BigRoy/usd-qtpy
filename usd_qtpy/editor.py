@@ -124,20 +124,24 @@ class EditorWindow(QtWidgets.QWidget):
         def snap_framingcam(stage):
             from pxr import Sdf
             framecam = render_util.create_framing_camera_in_stage(stage, Sdf.Path("/"),fit = 1.1)
-            render_util.render_playblast(stage,R"C:\dump\framingview##.##.png","1",1920,renderer="GL",camera = framecam)
+            render_util.render_playblast(stage, R"C:\dump\framingview##.##.png", "1", 1920, renderer="GL", camera = framecam)
 
         add_framecam = partial(snap_framingcam, self._stage)
 
         def render_turntable(stage):
             from pxr import Sdf
             framecam = render_util.create_turntable_camera(stage,Sdf.Path("/"))
-            render_util.render_playblast(stage,R"C:\dump\turntable\turningtableview_##.##.png","0:99",1920,renderer="GL",camera = framecam)
+            render_util.render_playblast(stage, R"C:\dump\turntable_2\centered_turningtableview_##.png", "0:99", 1920, renderer="GL", camera = framecam)
 
         render_ttable = partial(render_turntable, self._stage)
 
         render_actions["Snapshot"].triggered.connect(render_snap)
         render_actions["Snapshot Framing Camera"].triggered.connect(add_framecam)
         render_actions["Render Turntable"].triggered.connect(render_ttable)
+
+        # make sure folders are extant, folders need to exist before rendering to them.
+        # import os
+        # os.makedirs(R"C:\dump\turntable") 
 
         layout = self.layout()
         layout.setMenuBar(menubar)
