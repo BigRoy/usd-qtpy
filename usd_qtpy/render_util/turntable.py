@@ -21,7 +21,7 @@ def create_turntable_xform(stage: Usd.Stage, path: Union[Sdf.Path, str], name: s
     if isinstance(path,str):
         path = Sdf.Path(path)
     
-    path.AppendPath(name)
+    path = path.AppendPath(name)
 
     z_up = (framing_camera._stage_up(stage) == "Z")
     

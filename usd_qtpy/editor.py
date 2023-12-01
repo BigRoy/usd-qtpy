@@ -105,7 +105,7 @@ class EditorWindow(QtWidgets.QWidget):
         # Render menu
 
         render_menu = menubar.addMenu("Render")
-        render_labels = "Playblast", "Snapshot", "Snapshot Framing Camera"
+        render_labels = "Playblast", "Snapshot", "Snapshot Framing Camera", "Render Turntable"
         render_actions = {label : render_menu.addAction(label) for label in render_labels}
 
         # Testing 
@@ -117,19 +117,27 @@ class EditorWindow(QtWidgets.QWidget):
             print(UsdGeom.GetStageUpAxis(stage))
             # cam = render_util.playblast.camera_from_stageview(stage,stageview)
             # render_util.playblast.render_playblast(stage,path,"1",1920,cam,renderer="GL")
-            render_util.playblast.render_playblast(stage, path, "1", 1920, renderer="GL")
+            render_util.render_playblast(stage, path, "1", 1920, renderer="GL")
 
         render_snap = partial(render_snapshot, self._stage, self._stageview, goal_file)
 
         def snap_framingcam(stage):
             from pxr import Sdf
             framecam = render_util.create_framing_camera_in_stage(stage, Sdf.Path("/"),fit = 1.1)
-            render_util.playblast.render_playblast(stage,R"C:\dump\framingview##.##.png","1",1920,renderer="GL",camera = framecam)
+            render_util.render_playblast(stage,R"C:\dump\framingview##.##.png","1",1920,renderer="GL",camera = framecam)
 
         add_framecam = partial(snap_framingcam, self._stage)
 
+        def render_turntable(stage):
+            from pxr import Sdf
+            framecam = render_util.create_turntable_camera(stage,Sdf.Path("/"))
+            render_util.render_playblast(stage,R"C:\dump\turntable\turningtableview_##.##.png","0:99",1920,renderer="GL",camera = framecam)
+
+        render_ttable = partial(render_turntable, self._stage)
+
         render_actions["Snapshot"].triggered.connect(render_snap)
         render_actions["Snapshot Framing Camera"].triggered.connect(add_framecam)
+        render_actions["Render Turntable"].triggered.connect(render_ttable)
 
         layout = self.layout()
         layout.setMenuBar(menubar)
