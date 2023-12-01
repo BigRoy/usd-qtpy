@@ -305,7 +305,10 @@ class StageSdfModel(TreeModel):
 
         if role == QtCore.Qt.ToolTipRole:
             item = index.data(TreeModel.ItemRole)
-            return item.get("path")
+            path = item.get("path")
+            if path and isinstance(path, Sdf.Path):
+                path = path.pathString
+            return path
 
         return super(StageSdfModel, self).data(index, role)
 
