@@ -192,7 +192,25 @@ def rename_prim(prim: Usd.Prim, new_name: str) -> bool:
         return True
 
     prim_path = prim.GetPath()
-    new_prim_path = prim_path.GetParentPath().AppendChild(new_name)
+    new_prim_path = prim_path.ReplaceName(new_name)
+
+    # We want to map the path to the current edit target of its stage so that
+    # if the user is renaming a prim in an edit target currently editing
+    # within a variant set, that we rename that particular opinion. However,
+    # we only do that if the source prim path existed in the edit target
+    # otherwise we will edit it on the layer regularly
+    # WARNING This will crash on calls to `prim.GetPrimStack()` afterwards
+    #   See: https://forum.aousd.org/t/perform-namespace-edit-inside-a-variant-set-edit-target/1006
+    # stage = prim.GetStage()
+    # edit_target = stage.GetEditTarget()
+    # remapped_prim_path = edit_target.MapToSpecPath(prim_path)
+    # if (
+    #         prim_path != remapped_prim_path
+    # ):
+    #     logging.debug("Remapping prim path to within edit target: %s",
+    #                   remapped_prim_path)
+    #     prim_path = remapped_prim_path
+    #     new_prim_path = edit_target.MapToSpecPath(new_prim_path)
 
     stage = prim.GetStage()
     with Sdf.ChangeBlock():
