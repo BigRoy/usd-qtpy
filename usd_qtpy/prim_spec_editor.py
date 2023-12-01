@@ -276,7 +276,7 @@ class StageSdfModel(TreeModel):
 
         return super(StageSdfModel, self).flags(index)
 
-    def setData(self, index, value, role):
+    def setData(self, index, value, role) -> bool:
 
         if index.column() == 1:  # specifier
             item = index.internalPointer()
@@ -287,6 +287,9 @@ class StageSdfModel(TreeModel):
                 }
                 value = lookup[value]
                 spec.specifier = value
+                return True
+
+        return super(StageSdfModel, self).setData(index, value, role)
 
     def data(self, index, role):
 
