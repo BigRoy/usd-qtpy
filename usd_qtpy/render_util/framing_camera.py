@@ -3,6 +3,7 @@
 # https://github.com/beersandrew/assets/tree/1df93f4da686e9040093027df1e42ff9ea694866/scripts/thumbnail-generator
 
 import math
+from typing import Union
 
 from pxr import Usd, UsdGeom
 from pxr import Sdf, Gf
@@ -10,13 +11,15 @@ from pxr import Sdf, Gf
 def _stage_up(stage: Usd.Stage) -> str:
     return UsdGeom.GetStageUpAxis(stage)
 
-def create_framing_camera_in_stage(stage: Usd.Stage, root: Sdf.Path, 
+def create_framing_camera_in_stage(stage: Usd.Stage, root: Union[Sdf.Path,str], 
                                    name: str = "framingCam", fit: float = 1 ,
                                    width: int = 16, height: int = 9) -> UsdGeom.Camera:
     """
     Adds a camera that frames the whole stage.
     Can be specified to have a different aspect ratio, this will affect the sensor size internally.
     """
+    if isinstance(root,str):
+        root = Sdf.Path(root)
     # create camera
     camera = create_perspective_camera_in_stage(stage, root, name, width, height)
 
