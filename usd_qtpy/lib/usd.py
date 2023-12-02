@@ -205,6 +205,74 @@ def rename_prim(prim: Usd.Prim, new_name: str) -> bool:
     return True
 
 
+def unique_name(stage: Usd.Stage, prim_path: Sdf.Path) -> Sdf.Path:
+    """Return Sdf.Path that is unique under the current composed stage.
+
+    Note that this technically does not ensure that the Sdf.Path does not
+    exist in any of the layers, e.g. it could be defined within a currently
+    unselected variant or a muted layer.
+
+    """
+    src = prim_path.pathString.rstrip("123456789")
+    i = 1
+    while stage.GetPrimAtPath(prim_path):
+        prim_path = Sdf.Path(f"{src}{i}")
+        i += 1
+    return prim_path
+
+
+def parent_prims(prims: list[Usd.Prim],
+                 new_parent: Sdf.Path,
+                 layers: list[Sdf.Layer] = None) -> bool:
+    """Move Prims to a new parent in given layers.
+
+    Note:
+        This will only reparent prims to the new parent if the new parent
+        exists in the layer.
+
+    Arguments:
+        prims (list[Usd.Prim]): The prims to move the new parent
+        new_parent (Sdf.Path): Parent path to be moved to.
+        layers (list[Sdf.Layer]): The layers to apply the reparenting
+            in. If None are provided the stage's full layer stack will be used.
+
+    """
+    if not prims:
+        return False
+
+    # Only consider prims not already parented to the new parent
+    prims = [
+        prim for prim in prims if prim.GetPath().GetParentPath() != new_parent
+    ]
+    if not prims:
+        return False
+
+    if layers is None:
+        stage = prims[0].GetStage()
+        layers = stage.GetLayerStack()
+
+    edit_batch = Sdf.BatchNamespaceEdit()
+    for prim in prims:
+        edit = Sdf.NamespaceEdit.Reparent(
+            prim.GetPath(),
+            new_parent,
+            -1
+        )
+        edit_batch.Add(edit)
+
+    any_edits_made = False
+    with Sdf.ChangeBlock():
+        for layer in layers:
+            applied = layer.Apply(edit_batch)
+            if applied:
+                any_edits_made = True
+                for edit in edit_batch.edits:
+                    repath_properties(layer,
+                                      edit.currentPath,
+                                      edit.newPath)
+    return any_edits_made
+
+
 def remove_spec(spec):
     """Remove Sdf.Spec authored opinion."""
     if spec.expired:
