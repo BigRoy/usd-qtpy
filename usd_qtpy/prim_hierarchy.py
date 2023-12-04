@@ -15,7 +15,7 @@ from .lib.qt import iter_model_rows
 from .prim_delegate import DrawRectsDelegate
 from .prim_hierarchy_model import HierarchyModel
 from .references import ReferenceListWidget
-from .variants import CreateVariantSetDialog
+from .variants import CreateVariantSetDialog, VariantSetsWidget
 
 log = logging.getLogger(__name__)
 
@@ -168,7 +168,10 @@ class View(QtWidgets.QTreeView):
             self.on_manage_prim_reference_payload(prim)
 
         elif text == "VAR":
-            raise NotImplementedError("To be implemented")
+            prim = index.data(HierarchyModel.PrimRole)
+            widget = VariantSetsWidget(prim=prim, parent=self)
+            widget.resize(250, 100)
+            widget.show()
 
     def select_paths(self, paths: list[Sdf.Path]):
         """Select prims in the hierarchy view that match the Sdf.Path
