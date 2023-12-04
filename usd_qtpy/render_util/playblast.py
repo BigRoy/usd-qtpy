@@ -103,16 +103,12 @@ def get_frames_string(start_time: int, end_time: int = None, frame_stride: float
     """
     # Keep adhering to USD standard as internally defined.
     from pxr.UsdUtils import TimeCodeRange
-    range_token = TimeCodeRange.Tokens.RangeSeparator    # ":"
-    stride_token = TimeCodeRange.Tokens.StrideSeparator  # "x"
-
-    collect_str = f"{start_time}" # single frame
-    if end_time is not None:
-        collect_str += f"{range_token}{end_time}" # range of frames
-        if frame_stride is not None:
-            collect_str += f"{stride_token}{frame_stride}" # range of frames + stride
+    range_token = TimeCodeRange.Tokens.RangeSeparator if end_time is not None else ""        # ":"
+    stride_token = TimeCodeRange.Tokens.StrideSeparator if frame_stride is not None else ""  # "x"
     
-    return collect_str
+    end_time, frame_stride = end_time if end_time is not None else "", frame_stride if frame_stride is not None else ""
+
+    return f"{start_time}{range_token}{end_time}{stride_token}{frame_stride}"
 
 def tuples_to_frames_string(time_tuples: list[Union[tuple[int], tuple[int, int], tuple[int, int, float]]]) -> str:
     """
@@ -128,13 +124,9 @@ def tuples_to_frames_string(time_tuples: list[Union[tuple[int], tuple[int, int],
     separator_token = FrameSpecIterator.FRAMESPEC_SEPARATOR # ","
 
     def tuple_gen(tuple_iterable):
-        it = iter(tuple_iterable)
-        val = next(it,None)
-        while val:
+        for val in tuple_iterable:
             if len(val) <= 3:
                yield get_frames_string(*val) 
-            
-            val = next(it,None)
     
     return separator_token.join(tuple_gen(time_tuples))
 
