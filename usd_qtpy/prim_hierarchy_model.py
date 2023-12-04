@@ -209,11 +209,13 @@ class HierarchyModel(QtCore.QAbstractItemModel):
     def flags(self, index):
         # Make name editable
         if index.column() == 0:
-            return (
-                QtCore.Qt.ItemIsEnabled
-                | QtCore.Qt.ItemIsSelectable
-                | QtCore.Qt.ItemIsEditable
-            )
+            prim: Usd.Prim = index.data(self.PrimRole)
+            if prim and not prim.IsPseudoRoot():
+                return (
+                    QtCore.Qt.ItemIsEnabled
+                    | QtCore.Qt.ItemIsSelectable
+                    | QtCore.Qt.ItemIsEditable
+                )
         return super(HierarchyModel, self).flags(index)
 
     def setData(self, index, value, role):
