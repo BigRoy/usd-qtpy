@@ -284,7 +284,7 @@ class VariantSetWidget(QtWidgets.QWidget):
         variant_set_name = self._variant_set.GetName()
         for prim_spec in prim.GetPrimStack():
             variant_set_spec = prim_spec.variantSets.get(variant_set_name)
-            if variant_set_spec.expired or not variant_set_spec:
+            if not variant_set_spec or variant_set_spec.expired:
                 continue
 
             variant_spec = variant_set_spec.variants.get(variant_name)
