@@ -90,6 +90,58 @@ def check_renderplugin_name(enginestr: str) -> Union[str, None]:
         return enginestr
     return None
 
+def get_frames_string(start_time: int, end_time: int = None, frame_stride: float = None) -> str:
+    """
+    Takes a set of numbers and structures it so that it can be passed as frame string argument to e.g. render_playblast
+    Given only a start time, it'll render a frame at that frame.
+    Given a start and end time, it'll render a range from start to end, including end. (0-100 = 101 frames)
+    Given a start, end, and stride argument, it'll render a range with a different frame interval. 
+    (rendering every other frame can be done by setting this to 2.)
+    Output for 1, 2 and 3 arguments respectively: 
+    'start_time', 'start_time:end_time', 'start_time:end_timexframe_stride'
+    as defined by the USD standard.
+    """
+    # Keep adhering to USD standard as internally defined.
+    from pxr.UsdUtils import TimeCodeRange
+    range_token = TimeCodeRange.Tokens.RangeSeparator    # ":"
+    stride_token = TimeCodeRange.Tokens.StrideSeparator  # "x"
+
+    collect_str = f"{start_time}" # single frame
+    if end_time is not None:
+        collect_str += f"{range_token}{end_time}" # range of frames
+        if frame_stride is not None:
+            collect_str += f"{stride_token}{frame_stride}" # range of frames + stride
+    
+    return collect_str
+
+def tuples_to_frames_string(time_tuples: list[Union[tuple[int], tuple[int, int], tuple[int, int, float]]]) -> str:
+    """
+    Convert an iterable (e.g. list/generator) of tuples containing structured frame data:
+    tuple(start_time, end_time, frame_stride), same as the arguments to get_frames_string,
+    to a single string that can be parsed as a frames_string argument for multiple frames.
+    example input: (1,) , (1 , 50, 0.5), (8,10)
+    example output: '1,1:50x0.5,8:10'
+    (according to standards defined for UsdAppUtils.FrameRecorder)
+    """
+    # keep adhering to USD standard as internally defined.
+    from pxr.UsdAppUtils.framesArgs import FrameSpecIterator
+    separator_token = FrameSpecIterator.FRAMESPEC_SEPARATOR # ","
+
+    def tuple_gen(tuple_iterable):
+        it = iter(tuple_iterable)
+        val = next(it,None)
+        while val:
+            if (length := len(val)) == 1:
+                yield get_frames_string(val[0])
+            elif length == 2:
+                yield get_frames_string(val[0],val[1])
+            elif length > 2:
+                yield get_frames_string(val[0],val[1],val[2])
+            
+            val = next(it,None)
+    
+    return separator_token.join(tuple_gen(time_tuples))
+
 def render_playblast(stage: Usd.Stage, outputpath: str, frames: str, width: int, 
                     camera: UsdGeom.Camera = None, complexity: Union[str,int] = "High",
                     renderer: str = None, colormode: str = "sRGB"): 
