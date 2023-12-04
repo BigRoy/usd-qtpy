@@ -14,7 +14,7 @@ authors = [
 ]
 description = "Python Qt components for building custom USD tools."
 readme = "README.md"
-requires-python = ">=3.4"
+requires-python = ">=3.8"
 keywords = ["usd", "qt"]
 license = { file = "LICENSE" }
 classifiers = [
@@ -23,9 +23,9 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    'importlib-metadata; python_version<"3.7"', "qtpy"
+    "qtpy"
 ]
-version = "0.0.2"
+version = "0.0.3"
 
 [project.optional-dependencies]
 usd = ["usd-core"]
