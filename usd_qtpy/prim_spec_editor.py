@@ -313,32 +313,35 @@ class StageSdfModel(TreeModel):
         return super(StageSdfModel, self).data(index, role)
 
 
-class PrimSpectTypeFilterProxy(QtCore.QSortFilterProxyModel):
+class PrimSpecTypeFilterProxy(QtCore.QSortFilterProxyModel):
 
     def __init__(self, *args, **kwargs):
-        super(PrimSpectTypeFilterProxy, self).__init__(*args, **kwargs)
+        super(PrimSpecTypeFilterProxy, self).__init__(*args, **kwargs)
+
         self._filter_types = set()
+        self.setRecursiveFilteringEnabled(True)
+        self.setDynamicSortFilter(False)
 
     def set_types_filter(self, types):
         self._filter_types = set(types)
         self.invalidateFilter()
 
     def filterAcceptsRow(self, source_row, source_parent):
+        if not self._filter_types:
+            # Allow all if no filtering is selected
+            return True
+
         model = self.sourceModel()
         index = model.index(source_row, 0, source_parent)
-        if not index.isValid():
-            return False
-
         item = index.data(TreeModel.ItemRole)
-        item_type = item.get("type")
-        if (
-                self._filter_types
-                and item_type
-                and item_type not in self._filter_types
-        ):
+        if item is None:
             return False
 
-        return super(PrimSpectTypeFilterProxy,
+        item_type = item.get("type")
+        if item_type and item_type not in self._filter_types:
+            return False
+
+        return super(PrimSpecTypeFilterProxy,
                      self).filterAcceptsRow(source_row, source_parent)
 
 
@@ -429,6 +432,11 @@ class SpecEditorWindow(QtWidgets.QDialog):
     def _on_filter_selection_changed(self):
         items = self.filter_list.selectedItems()
         types = {item.text().strip() for item in items}
+
+        # There's a bug where the recursive filtering is very slow from qt
+        # if we don't collapse all first for very large trees - no idea why?
+        # TODO: resolve slowness
+        self.editor.view.collapseAll()
         self.editor.proxy.set_types_filter(types)
         self.editor.view.expandAll()
 
@@ -444,8 +452,7 @@ class SpecEditsWidget(QtWidgets.QWidget):
         filter_edit.setPlaceholderText("Filter")
 
         model = StageSdfModel(stage)
-        proxy = PrimSpectTypeFilterProxy()
-        proxy.setRecursiveFilteringEnabled(True)
+        proxy = PrimSpecTypeFilterProxy()
         proxy.setSourceModel(model)
         view = QtWidgets.QTreeView()
         view.setModel(proxy)
@@ -518,7 +525,6 @@ class SpecEditsWidget(QtWidgets.QWidget):
     def on_filter_changed(self, text):
         self.proxy.setFilterRegularExpression(".*{}.*".format(text))
         self.proxy.invalidateFilter()
-        self.view.expandAll()
 
     def showEvent(self, event):
         state = self.auto_refresh.checkState() == QtCore.Qt.Checked
