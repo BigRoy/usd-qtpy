@@ -131,12 +131,8 @@ def tuples_to_frames_string(time_tuples: list[Union[tuple[int], tuple[int, int],
         it = iter(tuple_iterable)
         val = next(it,None)
         while val:
-            if (length := len(val)) == 1:
-                yield get_frames_string(val[0])
-            elif length == 2:
-                yield get_frames_string(val[0],val[1])
-            elif length > 2:
-                yield get_frames_string(val[0],val[1],val[2])
+            if len(val) <= 3:
+               yield get_frames_string(*val) 
             
             val = next(it,None)
     
