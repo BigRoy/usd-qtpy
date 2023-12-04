@@ -117,7 +117,7 @@ class StageSdfModel(TreeModel):
         for layer in stage.GetLayerStack():
 
             layer_item = Item({
-                "name": layer.GetDisplayName(),
+                "name": layer.GetDisplayName() or layer.identifier,
                 "identifier": layer.identifier,
                 "specifier": None,
                 "type": layer.__class__.__name__
@@ -484,7 +484,8 @@ class SpecEditsWidget(QtWidgets.QWidget):
 
         stage = self.model._stage
         for layer in stage.GetLayerStack():
-            action = move_menu.addAction(layer.GetDisplayName())
+            label = layer.GetDisplayName() or layer.identifier
+            action = move_menu.addAction(label)
             action.setData(layer)
 
         def move_to(action):
