@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 
 from qtpy import QtWidgets, QtCore
@@ -15,6 +16,8 @@ from .prim_delegate import DrawRectsDelegate
 from .prim_hierarchy_model import HierarchyModel
 from .references import ReferenceListWidget
 from .variants import CreateVariantSetDialog
+
+log = logging.getLogger(__name__)
 
 
 class View(QtWidgets.QTreeView):
@@ -274,16 +277,46 @@ class View(QtWidgets.QTreeView):
             return
 
         stage = prims[0].GetStage()
+
+        # Consider only prims that have opinions in the stage's layer stack
+        # disregard opinions inside payloads/references
+        stage_layers = set(stage.GetLayerStack())
+
+        # Exclude prims not defined in the stage's layer stack
+        prims = [
+            prim for prim in prims
+            if any(spec.layer in stage_layers for spec in prim.GetPrimStack())
+        ]
+        if not prims:
+            log.warning("Skipped all prims because they are not defined in "
+                        "the stage's layer stack but likely originate from a "
+                        "reference or payload.")
+            return
+
         parent_path = prims[0].GetPath().GetParentPath()
 
         group_path = parent_path.AppendChild("group")
         group_path = unique_name(stage, group_path)
 
         # Define a group
-        group = stage.DefinePrim(group_path, "Xform")
+        stage.DefinePrim(group_path, "Xform")
+
+        # We want to group across all prim specs to ensure whatever we're
+        # moving gets put into the group, so we define the prim across all
+        # layers of the layer stack if it contains any of the objects
+        for layer in stage.GetLayerStack():
+            # If the layer has opinions on any of the source prims we ensure
+            # the new parent also exists, to ensure the movement of the input
+            # prims
+            if (
+                    any(layer.GetObjectAtPath(prim.GetPath())
+                        for prim in prims)
+                    and not layer.GetPrimAtPath(group_path)
+            ):
+                Sdf.CreatePrimInLayer(layer, group_path)
 
         # Now we want to move all selected prims into this
-        parent_prims(prims, group.GetPath())
+        parent_prims(prims, group_path)
 
         # If the original group was renamed but there's now no conflict
         # anymore, e.g. we grouped `group` itself from the parent path
@@ -301,11 +334,22 @@ class View(QtWidgets.QTreeView):
         if not prims:
             return
 
+        stage = prims[0].GetStage()
+        stage_layers = stage.GetLayerStack()
+
         # We first collect the prim specs before removing because the Usd.Prim
         # will become invalid as we start removing specs
         specs = []
         for prim in prims:
-            specs.extend(prim.GetPrimStack())
+            # We only allow deletions from layers in the current layer stack
+            # and exclude those that are from loaded references/payloads to
+            # avoid editing specs inside references/layers
+            for spec in prim.GetPrimStack():
+                if spec.layer in stage_layers:
+                    specs.append(spec)
+                else:
+                    logging.warning("Skipping prim spec not in "
+                                    "stage's layer stack: %s", spec)
 
         with Sdf.ChangeBlock():
             for spec in specs:
