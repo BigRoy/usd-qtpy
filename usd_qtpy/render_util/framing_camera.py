@@ -8,8 +8,10 @@ from typing import Union
 from pxr import Usd, UsdGeom
 from pxr import Sdf, Gf
 
+
 def _stage_up(stage: Usd.Stage) -> str:
     return UsdGeom.GetStageUpAxis(stage)
+
 
 def create_framing_camera_in_stage(stage: Usd.Stage, root: Union[Sdf.Path,str], 
                                    name: str = "framingCam", fit: float = 1,
@@ -88,7 +90,7 @@ def create_perspective_camera_in_stage(stage: Usd.Stage, root: Sdf.Path,
 
 def camera_orient_to_stage_up(camera: UsdGeom.Camera, stage: Usd.Stage, z_up: bool = None):
     if z_up is None:
-        z_up = (_stage_up(stage) == "Z")
+        z_up = _stage_up(stage) == "Z"
 
     if not z_up:
         return # do nothing when Y is up and all is good and right in the world.
@@ -101,7 +103,7 @@ def camera_orient_to_stage_up(camera: UsdGeom.Camera, stage: Usd.Stage, z_up: bo
 
 def camera_apply_translation(camera: UsdGeom.Camera, translation: Gf.Vec3d):
     """
-    Apply translation to first found translation operation in
+    Apply translation to first found translation operation in given Camera.
     """
     
     from pxr.UsdGeom import XformOp
@@ -134,16 +136,16 @@ def set_camera_clippingplanes_from_stage(camera: UsdGeom.Camera, stage: Usd.Stag
     
     # Explicit None checks for values that can be False or 0
     if z_up is None:
-        z_up = (_stage_up(stage) == "Z")
+        z_up = _stage_up(stage) == "Z"
 
     if distance is None:
         distance = calculate_stage_distance_to_camera(camera, stage, bounds_min, bounds_max, z_up)
 
-    ver_idx = 2 if z_up else 1
+    vertical_axis_index = 2 if z_up else 1
 
     # expand clipping planes out a bit.
-    near_clip = max((distance + bounds_min[ver_idx]) * 0.5, 0.0000001)
-    far_clip = (distance + bounds_max[ver_idx]) * 2
+    near_clip = max((distance + bounds_min[vertical_axis_index]) * 0.5, 0.0000001)
+    far_clip = (distance + bounds_max[vertical_axis_index]) * 2
     clipping_planes = Gf.Vec2f(near_clip, far_clip)
     camera.GetClippingRangeAttr().Set(clipping_planes)
 
@@ -172,7 +174,7 @@ def calculate_camera_position(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_m
     
     # Explicit None checks for values that can be False or 0
     if z_up is None:
-        z_up = (_stage_up(stage) == "Z")
+        z_up = _stage_up(stage) == "Z"
 
     if distance is None:
         distance = calculate_stage_distance_to_camera(camera, stage, bounds_min, bounds_max, z_up)
@@ -215,17 +217,17 @@ def calculate_stage_distance_to_camera(camera: UsdGeom.Camera, stage: Usd.Stage,
         bounds_min, bounds_max = boundingbox.GetMin(), boundingbox.GetMax()
     
     if z_up is None:
-        z_up = (_stage_up(stage) == "Z")
+        z_up = _stage_up(stage) == "Z"
 
     focal_length = camera.GetFocalLengthAttr().Get()
     hor_aperture = camera.GetHorizontalApertureAttr().Get()
     ver_aperture = camera.GetVerticalApertureAttr().Get()
 
-    ver_idx = 2 if z_up else 1
+    vertical_axis_index = 2 if z_up else 1
 
     # get size of bounds
     d_hor = bounds_max[0] - bounds_min[0]
-    d_ver = bounds_max[ver_idx] - bounds_min[ver_idx]
+    d_ver = bounds_max[vertical_axis_index] - bounds_min[vertical_axis_index]
 
     fov_hor, fov_ver = calculate_field_of_view(focal_length,hor_aperture), calculate_field_of_view(focal_length,ver_aperture)
     

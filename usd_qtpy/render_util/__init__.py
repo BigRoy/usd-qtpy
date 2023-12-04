@@ -2,3 +2,4 @@
 from .playblast import *
 from .framing_camera import *
 from .turntable import *
+from .dialog import *

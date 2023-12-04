@@ -16,7 +16,6 @@ from pxr.Usdviewq.stageView import StageView
 
 from ..viewer import CustomStageView # Wrapper around Usdviewq's StageView
 
-from . import framing_camera
 
 def _setup_opengl_widget(width: int, height: int, samples: int = 4):
     """
@@ -38,6 +37,7 @@ def _setup_opengl_widget(width: int, height: int, samples: int = 4):
 
     return GLWidget
 
+
 def iter_stage_cameras(stage: Usd.Stage, TraverseAll = True) -> Generator[UsdGeom.Camera]:
     """
     Return a generator of all camera primitives.
@@ -56,8 +56,8 @@ def iter_stage_cameras(stage: Usd.Stage, TraverseAll = True) -> Generator[UsdGeo
 
 def camera_from_stageview(stage: Usd.Stage, stageview: Union[StageView, CustomStageView], name: str = "playblastCam") -> UsdGeom.Camera:
     """ Catches a stage view whether it'd be from the custom viewer or from the baseclass and calls the export to stage function."""
-    stageview.ExportFreeCameraToStage(stage,name)
-    return UsdGeom.Camera.Get(stage,Sdf.Path(f"/{name}"))
+    stageview.ExportFreeCameraToStage(stage, name)
+    return UsdGeom.Camera.Get(stage, Sdf.Path(f"/{name}"))
 
 # Source: UsdAppUtils.colorArgs.py
 def get_color_args():
@@ -103,12 +103,17 @@ def get_frames_string(start_time: int, end_time: int = None, frame_stride: float
     """
     # Keep adhering to USD standard as internally defined.
     from pxr.UsdUtils import TimeCodeRange
-    range_token = TimeCodeRange.Tokens.RangeSeparator if end_time is not None else ""        # ":"
-    stride_token = TimeCodeRange.Tokens.StrideSeparator if frame_stride is not None else ""  # "x"
+    range_token = TimeCodeRange.Tokens.RangeSeparator   # ":"
+    stride_token = TimeCodeRange.Tokens.StrideSeparator # "x"
     
-    end_time, frame_stride = end_time if end_time is not None else "", frame_stride if frame_stride is not None else ""
+    collect = f"{start_time}"
 
-    return f"{start_time}{range_token}{end_time}{stride_token}{frame_stride}"
+    if end_time is not None:
+        collect += f"{range_token}{end_time}"
+        if frame_stride is not None:
+            collect += f"{stride_token}{frame_stride}"
+    
+    return collect
 
 def tuples_to_frames_string(time_tuples: list[Union[tuple[int], tuple[int, int], tuple[int, int, float]]]) -> str:
     """
@@ -133,9 +138,16 @@ def tuples_to_frames_string(time_tuples: list[Union[tuple[int], tuple[int, int],
 def render_playblast(stage: Usd.Stage, outputpath: str, frames: str, width: int, 
                     camera: UsdGeom.Camera = None, complexity: Union[str,int] = "High",
                     renderer: str = None, colormode: str = "sRGB"): 
+    import os # for some reason, importing os at the top wouldn't let me access it here.
+
     from pxr.UsdAppUtils.framesArgs import FrameSpecIterator, ConvertFramePlaceholderToFloatSpec
     from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
     from pxr import UsdUtils
+
+    # check existence of directory.
+    if not os.path.exists(os.path.dirname(outputpath)):
+        raise FileNotFoundError(f"Directory '{os.path.dirname(outputpath)}' not found,\n"
+                                 "directory must exist before rendering to it.")
 
     # rectify pathname for use in .format with path.format(frame = timeCode.getValue())
     if not (outputpath := ConvertFramePlaceholderToFloatSpec(outputpath)):
@@ -200,7 +212,7 @@ def render_playblast(stage: Usd.Stage, outputpath: str, frames: str, width: int,
     # 123 - 101:105 - 105:101 - 101:109x2 - 101:110x2 - 101:104x0.5
     frame_iterator = FrameSpecIterator(frames)
 
-    if not frame_iterator:
+    if not frame_iterator or not frames:
         frame_iterator = [Usd.TimeCode.EarliestTime()]
 
     for time_code in frame_iterator:
