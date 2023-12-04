@@ -105,7 +105,8 @@ def camera_apply_translation(camera: UsdGeom.Camera, translation: Gf.Vec3d):
     """
     Apply translation to first found translation operation in given Camera.
     """
-    
+    # TODO: Make this generic
+
     from pxr.UsdGeom import XformOp
     
     cam_prim = camera.GetPrim()
