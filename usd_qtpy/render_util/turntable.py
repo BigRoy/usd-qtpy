@@ -102,38 +102,11 @@ def turn_tableize_prim(stage: Usd.Stage, path: Union[Sdf.Path,str],
 
     
 def _xform_parent_test(stage: Usd.Stage, name: str = "containerXform"):
-    from_path = Sdf.Path("/Kitchen_set")
+    from_path = Sdf.Path("/Kitchen_set") # hardcoded for now
     to_path = Sdf.Path(f"/{name}")
-    
-    parent_xform = UsdGeom.Xform.Define(stage,to_path)
-    parent_prim = parent_xform.GetPrim()
 
     child_prim = stage.GetPrimAtPath(from_path)
 
-    all_prims: list[Usd.Prim] = traverse_all_children(stage,from_path)
-
-    print(*(i.GetName() for i in all_prims))
-    print(*all_prims)
-    print(usd.parent_prims([],to_path))
+    usd.parent_prims([child_prim],to_path)
 
 
-def traverse_all_children(stage: Usd.Stage, path: Union[Sdf.Path,str]):
-    if isinstance(path,str):
-        path = Sdf.Path(path)
-
-    prim = stage.GetPrimAtPath(path)
-
-    def recurse_children(prim: Usd.Prim, carry: list[Usd.Prim] = None) -> list[Usd.Prim]:
-        if carry is None:
-            carry = []
-        
-        children: list[Usd.Prim] = prim.GetAllChildren()
-        if children:
-            carry.extend(children)
-
-            for child in children:
-                carry = recurse_children(child,carry)
-        
-        return carry
-    
-    return [prim, *recurse_children(prim)]
