@@ -53,7 +53,8 @@ def create_turntable_xform(stage: Usd.Stage, path: Union[Sdf.Path, str], name: s
 
 def create_turntable_camera(stage: Usd.Stage, root: Union[Sdf.Path,str], 
                             name: str = "turntableCam", fit: float = 1.1,
-                            width: int = 16, height: int = 9, length: int = 100, frame_start: int = 0) -> UsdGeom.Camera:
+                            width: int = 16, height: int = 9, 
+                            length: int = 100, frame_start: int = 0) -> UsdGeom.Camera:
     """
     Creates a complete setup with a stage framing perspective camera, within an animated, rotating Xform.
     """
@@ -100,3 +101,39 @@ def turn_tableize_prim(stage: Usd.Stage, path: Union[Sdf.Path,str],
         spinop.Set(time=frame_range[1], value = ((length - 1) / float(length)) * 360)
 
     
+def _xform_parent_test(stage: Usd.Stage, name: str = "containerXform"):
+    from_path = Sdf.Path("/Kitchen_set")
+    to_path = Sdf.Path(f"/{name}")
+    
+    parent_xform = UsdGeom.Xform.Define(stage,to_path)
+    parent_prim = parent_xform.GetPrim()
+
+    child_prim = stage.GetPrimAtPath(from_path)
+
+    all_prims: list[Usd.Prim] = traverse_all_children(stage,from_path)
+
+    print(*(i.GetName() for i in all_prims))
+    print(*all_prims)
+    print(usd.parent_prims([],to_path))
+
+
+def traverse_all_children(stage: Usd.Stage, path: Union[Sdf.Path,str]):
+    if isinstance(path,str):
+        path = Sdf.Path(path)
+
+    prim = stage.GetPrimAtPath(path)
+
+    def recurse_children(prim: Usd.Prim, carry: list[Usd.Prim] = None) -> list[Usd.Prim]:
+        if carry is None:
+            carry = []
+        
+        children: list[Usd.Prim] = prim.GetAllChildren()
+        if children:
+            carry.extend(children)
+
+            for child in children:
+                carry = recurse_children(child,carry)
+        
+        return carry
+    
+    return [prim, *recurse_children(prim)]

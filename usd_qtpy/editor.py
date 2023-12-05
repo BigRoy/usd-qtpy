@@ -105,7 +105,7 @@ class EditorWindow(QtWidgets.QWidget):
         # Render menu
 
         render_menu = menubar.addMenu("Render")
-        render_labels = "Playblast", "Snapshot", "Snapshot Framing Camera", "Render Turntable"
+        render_labels = "Playblast", "Snapshot", "Snapshot Framing Camera", "Render Turntable", "Reparent Kitchen"
         render_actions = {label : render_menu.addAction(label) for label in render_labels}
 
         # Testing 
@@ -128,10 +128,12 @@ class EditorWindow(QtWidgets.QWidget):
 
         render_ttable = partial(render_turntable, self._stage)
 
+        reparent_kitchen = partial(render_util.turntable._xform_parent_test,self._stage)
+
         render_actions["Snapshot"].triggered.connect(render_snap)
         render_actions["Snapshot Framing Camera"].triggered.connect(add_framecam)
         render_actions["Render Turntable"].triggered.connect(render_ttable)
-
+        render_actions["Reparent Kitchen"].triggered.connect(reparent_kitchen)
         # make sure folders are extant, folders need to exist before rendering to them.
         # import os
         # os.makedirs(R"C:\dump\turntable") 
