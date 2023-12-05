@@ -50,9 +50,8 @@ class QJumpSlider(QtWidgets.QSlider):
 class TimelineWidget(QtWidgets.QWidget):
     """Timeline widget
 
-    The timeline plays throught time using QTimer and
-    will try to match the FPS based on time spent between
-    each frame.
+    The timeline plays through time using QTimer and will try to match the FPS
+    based on time spent between each frame.
 
     """
     # todo: Allow auto stop on __del__ or cleanup to kill timers
@@ -104,6 +103,8 @@ QSlider::handle:horizontal {
         self.frame.setMaximum(RANGE)
         self.frame.setKeyboardTracking(False)
         self.playButton = QtWidgets.QPushButton("Play")
+        # TODO: Allow this to be user customizable
+        self.play_every_frame = False
 
         layout = QtWidgets.QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -118,23 +119,26 @@ QSlider::handle:horizontal {
         # possible. In advanceFrameForPlayback we use the sleep() call
         # to slow down rendering to self.framesPerSecond fps.
         self._timer = QtCore.QTimer(self)
-
-        fps = 25
-        interval = 1000 / float(fps)
-
-        self._timer.setInterval(interval)
-        self._timer.timeout.connect(self._advanceFrameForPlayback)
+        self._timer.timeout.connect(self._advance_frame_for_playback)
+        self.set_fps(24)  # default stage fps
+        self._elapsed_timer = QtCore.QElapsedTimer()
 
         self.playButton.clicked.connect(self.toggle_play)
         self.slider.valueChanged.connect(self.frame.setValue)
-        self.frame.valueChanged.connect(self._frameChanged)
+        self.frame.valueChanged.connect(self._frame_changed)
         self.start.valueChanged.connect(self.slider.setMinimum)
         self.end.valueChanged.connect(self.slider.setMaximum)
 
-    def setStartFrame(self, start):
+    def set_fps(self, fps):
+        """Set FPS for the timeline to play at"""
+        self._timer.setInterval(1000 / float(fps))
+
+    def set_start_timecode(self, start: float):
+        """Set start timecode (usually the frame) for the timeline"""
         self.start.setValue(start)
 
-    def setEndFrame(self, end):
+    def set_end_timecode(self, end: float):
+        """Set end timecode (usually the frame) for the timeline"""
         self.end.setValue(end)
 
     @property
@@ -153,6 +157,7 @@ QSlider::handle:horizontal {
 
         if state:
             self._timer.start()
+            self._elapsed_timer.restart()
             self.playbackStarted.emit()
 
             # Set focus to the slider as it helps
@@ -162,13 +167,14 @@ QSlider::handle:horizontal {
 
         else:
             self._timer.stop()
+            self._elapsed_timer.invalidate()
             self.playbackStopped.emit()
 
     def toggle_play(self):
         # Toggle play state
         self.playing = not self.playing
 
-    def _advanceFrameForPlayback(self):
+    def _advance_frame_for_playback(self):
 
         # This should actually make sure that the playback speed
         # matches the FPS of the scene. Currently it will advance
@@ -176,17 +182,43 @@ QSlider::handle:horizontal {
         # super fast. See `_advanceFrameForPlayback` in USD view
         # on how they manage the playback speed. That code is in:
         # pxr/usdImaging/lib/usdviewq/appController.py
+        if not self.play_every_frame and self._elapsed_timer.isValid():
+            elapsed = self._elapsed_timer.restart()
+            advance_frames = elapsed // self._timer.interval()
+            if advance_frames == 0:
+                advance_frames = 1  # ensure always a frame is advanced
+        else:
+            advance_frames = 1
+
+        if advance_frames > 1:
+            # The rendering couldn't keep up with the FPS and thus we are
+            # skipping frames now
+            log.debug("Advanced more than one frame: %s", advance_frames)
 
         frame = self.frame.value()
-        frame += 1
+        frame += advance_frames
         # Loop around
         if frame >= self.slider.maximum():
-            frame = self.slider.minimum()
+            # The time taken for the frame overshoots the end frame.
+            # For very short frame ranges it might overshoot it again if FPS
+            # is low so taking into account time spent and how much it
+            # overshoots we should fine the new frame number.
+            start_frame = self.slider.minimum()
+            end_frame = self.slider.maximum()
+            frame_range = end_frame - start_frame
+            frame_in_range = frame - start_frame
+            new_frame_in_range = frame_in_range % frame_range
+            new_frame_in_range += start_frame
+            frame = new_frame_in_range
 
         self.slider.setValue(frame)
 
-    def _frameChanged(self, frame):
-        """Trigger a frame change callback together with whether it's currently playing."""
+    def _frame_changed(self, frame):
+        """Callback on current frame value change in the timeline.
+
+        Emits the `frameChanged` signal with frame number and whether it's
+        currently playing the timeline.
+        """
 
         if self.slider.value() != frame:
             # Whenever a manual frame was entered
@@ -219,6 +251,8 @@ class CustomStageView(StageView):
 
 
 class Widget(QtWidgets.QWidget):
+    """USD Viewer widge containing a view with a playable timeline."""
+
     def __init__(self, stage=None, parent=None):
         super(Widget, self).__init__(parent=parent)
 
@@ -247,7 +281,7 @@ class Widget(QtWidgets.QWidget):
         self.setAcceptDrops(True)
 
         if stage:
-            self.setStage(stage)
+            self.set_stage(stage)
 
         # Set focus to the widget itself so that it's not the start
         # frame text edit that takes focus
@@ -258,19 +292,6 @@ class Widget(QtWidgets.QWidget):
         self.view.recomputeBBox()
         self.view.updateGL()
         self.view.updateView()
-
-    def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.acceptProposedAction()
-
-    def dropEvent(self, event):
-        for url in event.mimeData().urls():
-            filename = url.toLocalFile()
-            stage = Usd.Stage.Open(filename)
-            self.setStage(stage)
-
-            self.refresh()
-            return
 
     def on_context_menu(self, point):
         # TODO: Context menu should not show on "zoom in/out"
@@ -420,20 +441,21 @@ class Widget(QtWidgets.QWidget):
 
         menu.exec_(self.view.mapToGlobal(point))
 
-    def set_camera(self, prim):
+    def set_camera(self, prim: Usd.Prim):
+        """Set the current active camera"""
         self.model.viewSettings.cameraPrim = prim
 
-    def setPreviewColors(self, prim, color, alpha):
+    def set_preview_colors(self, prim, color, alpha):
         # refs:
         # https://graphics.pixar.com/usd/docs/Simple-Shading-in-USD.html
         # https://graphics.pixar.com/usd/docs/UsdPreviewSurface-Proposal.html
         pass
 
-    def setStage(self, stage):
+    def set_stage(self, stage: Usd.Stage):
         self.model.stage = stage
 
         # Set the model to the earliest time so that for animated meshes
-        # like Alembicit will be able to display the geometry
+        # like Alembic it will be able to display the geometry
         # see: https://github.com/PixarAnimationStudios/USD/issues/1022
         earliest = Usd.TimeCode.EarliestTime()
         self.model.currentFrame = Usd.TimeCode(earliest)
@@ -444,15 +466,21 @@ class Widget(QtWidgets.QWidget):
         #   `Sdf.ChangeBlock` code? We don't care too much about being instant
         #   on the redraw
 
-        # TODO: Show/hide the timeline and set it to frame range of the
-        #  animation if the loaded stage has an authored time code.
+        # Show/hide the timeline and set it to frame range of the
+        # animation if the loaded stage has an authored time code.
+        # TODO: Update this on stage event changes to detect when to hide/show?
+        has_animation = stage.HasAuthoredTimeCodeRange()
+        self.timeline.setVisible(has_animation)
+        if has_animation:
+            self.timeline.set_start_timecode(stage.GetStartTimeCode())
+            self.timeline.set_end_timecode(stage.GetEndTimeCode())
+            self.timeline.set_fps(stage.GetTimeCodesPerSecond())
 
         # TODO: If the scene contains lights then disable default camera light
         #   and default dome light so the scene is accurately lit with what
         #   is in the USD file only
 
-    def closeEvent(self, event):
-
+    def _stop_renderer(self):
         # Stop timeline so it stops its QTimer
         self.timeline.playing = False
 
@@ -474,6 +502,20 @@ class Widget(QtWidgets.QWidget):
         self.model.playing = True
         self.view.updateForPlayback()
 
+    # region Qt methods
+    def hideEvent(self, event):
+        # Make sure to stop the rendering whenever the view gets hidden
+        # This also ensures it stops the renderer whenever a UI is closed
+        # that contains the widget
+        # When the UI is shown again the StageView will automatically
+        # set up a renderer again to restart rendering.
+        # TODO: Preferably we can detect the difference between close and hide
+        #  so that we perform a full 'close renderer' call only when closed,
+        #  but as a widget used in another UI the `closeEvent` for the widget
+        #  does not get called.
+        self._stop_renderer()
+        super(Widget, self).hideEvent(event)
+
     def keyPressEvent(self, event):
         # Implement some shortcuts for the widget
         # todo: move this code
@@ -489,3 +531,4 @@ class Widget(QtWidgets.QWidget):
         elif key == QtCore.Qt.Key_R:
             # Reframe the objects
             self.refresh()
+    # endregion
