@@ -6,6 +6,8 @@ from pxr import Usd, UsdGeom
 from pxr import Sdf, Gf
 
 from . import framing_camera
+from ..lib import usd
+
 
 def create_turntable_xform(stage: Usd.Stage, path: Union[Sdf.Path, str], name: str = "turntableXform",
                            length: int = 100, frame_start: int = 0, repeats: int = 1) -> UsdGeom.Xform:
@@ -49,7 +51,6 @@ def create_turntable_xform(stage: Usd.Stage, path: Union[Sdf.Path, str], name: s
     return xform
 
 
-
 def create_turntable_camera(stage: Usd.Stage, root: Union[Sdf.Path,str], 
                             name: str = "turntableCam", fit: float = 1.1,
                             width: int = 16, height: int = 9, length: int = 100, frame_start: int = 0) -> UsdGeom.Camera:
@@ -65,6 +66,7 @@ def create_turntable_camera(stage: Usd.Stage, root: Union[Sdf.Path,str],
     cam = framing_camera.create_framing_camera_in_stage(stage,xform_path,name,fit,width,height,True)
 
     return cam
+
 
 def turn_tableize_prim(stage: Usd.Stage, path: Union[Sdf.Path,str], 
                        length: int = 100, frame_start: int = 0, repeats: int = 1):

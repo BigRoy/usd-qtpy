@@ -88,6 +88,7 @@ def create_perspective_camera_in_stage(stage: Usd.Stage, root: Sdf.Path,
 
     return camera
 
+
 def camera_orient_to_stage_up(camera: UsdGeom.Camera, stage: Usd.Stage, z_up: bool = None):
     if z_up is None:
         z_up = _stage_up(stage) == "Z"
@@ -100,6 +101,7 @@ def camera_orient_to_stage_up(camera: UsdGeom.Camera, stage: Usd.Stage, z_up: bo
     cam_prim = camera.GetPrim()
     xform_cam = UsdGeom.Xformable(cam_prim)
     xform_cam.AddRotateXOp(XformOp.PrecisionDouble).Set(90)
+
 
 def camera_apply_translation(camera: UsdGeom.Camera, translation: Gf.Vec3d):
     """
@@ -123,6 +125,7 @@ def camera_apply_translation(camera: UsdGeom.Camera, translation: Gf.Vec3d):
         translate_op = xform_cam.AddTranslateOp(XformOp.PrecisionDouble)
 
     translate_op.Set(translation)
+
 
 def set_camera_clippingplanes_from_stage(camera: UsdGeom.Camera, stage: Usd.Stage,
                         bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None, 
@@ -150,6 +153,7 @@ def set_camera_clippingplanes_from_stage(camera: UsdGeom.Camera, stage: Usd.Stag
     clipping_planes = Gf.Vec2f(near_clip, far_clip)
     camera.GetClippingRangeAttr().Set(clipping_planes)
 
+
 def get_stage_boundingbox(stage: Usd.Stage, time: Usd.TimeCode = Usd.TimeCode.EarliestTime(), 
                           purpose_tokens: list[str] = ["default"]) -> Gf.Range3d:
     """
@@ -161,6 +165,7 @@ def get_stage_boundingbox(stage: Usd.Stage, time: Usd.TimeCode = Usd.TimeCode.Ea
     bbox_cache = UsdGeom.BBoxCache(time,purpose_tokens)
     stage_root = stage.GetPseudoRoot()
     return bbox_cache.ComputeWorldBound(stage_root).GetBox()
+
 
 def calculate_camera_position(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_min: Gf.Vec3d = None, 
                               bounds_max: Gf.Vec3d = None, z_up: bool = None, distance: float = None) -> Gf.Vec3d:
@@ -205,6 +210,7 @@ def calculate_camera_position(camera: UsdGeom.Camera, stage: Usd.Stage, bounds_m
 
     return camera_position
 
+
 def calculate_stage_distance_to_camera(camera: UsdGeom.Camera, stage: Usd.Stage, 
                                        bounds_min: Gf.Vec3d = None, bounds_max: Gf.Vec3d = None, 
                                        z_up: bool = None, fit: float = 1) -> float:
@@ -240,6 +246,7 @@ def calculate_stage_distance_to_camera(camera: UsdGeom.Camera, stage: Usd.Stage,
     # return units back to cm on return
     return max(capturesize_hor, capturesize_ver) / 10
 
+
 def calculate_field_of_view(focal_length, sensor_size) -> float:
     # Math : https://sdk-forum.dji.net/hc/en-us/articles/11317874071065-How-to-calculate-the-FoV-of-the-camera-lens-
     """
@@ -255,6 +262,7 @@ def calculate_field_of_view(focal_length, sensor_size) -> float:
     # 
     # This expression is rewritten as 2 * atan(h * (2 * f)), this is mathematically the same.
     return 2 * math.atan(sensor_size / (2 * focal_length))
+
 
 def calculate_perspective_distance(subject_size, field_of_view, fit: float = 1) -> float:
     """

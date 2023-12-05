@@ -54,14 +54,17 @@ def iter_stage_cameras(stage: Usd.Stage, TraverseAll = True) -> Generator[UsdGeo
         if prim.IsA(UsdGeom.Camera):
             yield prim
 
+
 def camera_from_stageview(stage: Usd.Stage, stageview: Union[StageView, CustomStageView], name: str = "playblastCam") -> UsdGeom.Camera:
     """ Catches a stage view whether it'd be from the custom viewer or from the baseclass and calls the export to stage function."""
     stageview.ExportFreeCameraToStage(stage, name)
     return UsdGeom.Camera.Get(stage, Sdf.Path(f"/{name}"))
 
+
 # Source: UsdAppUtils.colorArgs.py
 def get_color_args():
     return ("disabled","sRGB","openColorIO")
+
 
 def get_complexity_levels() -> Generator[str]:
     """
@@ -70,12 +73,14 @@ def get_complexity_levels() -> Generator[str]:
     from pxr.UsdAppUtils.complexityArgs import RefinementComplexities as Complex
     return (item.name for item in Complex._ordered)
 
+
 def iter_renderplugin_names() -> Generator[str]:
     """
     Returns a generator that will iterate through all names of Render Engine Plugin / Hydra Delegates
     """
     from pxr.UsdImagingGL import Engine as En
     return (En.GetRendererDisplayName(pluginId) for pluginId in En.GetRendererPlugins())
+
 
 def get_renderplugin(enginestr: str):
     from pxr.UsdImagingGL import Engine as En
@@ -84,11 +89,13 @@ def get_renderplugin(enginestr: str):
             return plug
     return None
 
+
 def check_renderplugin_name(enginestr: str) -> Union[str, None]:
     plugnames = iter_renderplugin_names()
     if enginestr in plugnames:
         return enginestr
     return None
+
 
 def get_frames_string(start_time: int, end_time: int = None, frame_stride: float = None) -> str:
     """
@@ -115,6 +122,7 @@ def get_frames_string(start_time: int, end_time: int = None, frame_stride: float
     
     return collect
 
+
 def tuples_to_frames_string(time_tuples: list[Union[tuple[int], tuple[int, int], tuple[int, int, float]]]) -> str:
     """
     Convert an iterable (e.g. list/generator) of tuples containing structured frame data:
@@ -134,6 +142,7 @@ def tuples_to_frames_string(time_tuples: list[Union[tuple[int], tuple[int, int],
                yield get_frames_string(*val) 
     
     return separator_token.join(tuple_gen(time_tuples))
+
 
 def render_playblast(stage: Usd.Stage, outputpath: str, frames: str, width: int, 
                     camera: UsdGeom.Camera = None, complexity: Union[str,int] = "High",
