@@ -359,10 +359,6 @@ class View(QtWidgets.QTreeView):
                 if spec.expired:
                     continue
 
-                # Warning: This would also remove it from layers from
-                #   references/payloads!
-                # TODO: Filter specs for which their `.getLayer()` is a layer
-                #   from the Stage's layer stack?
                 remove_spec(spec)
 
     def _duplicate_selected(self):
