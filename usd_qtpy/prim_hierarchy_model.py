@@ -1,9 +1,9 @@
 import logging
 import contextlib
-from typing import Union, Optional
+from typing import Optional
 
 from qtpy import QtCore
-from pxr import Usd, Sdf, Tf
+from pxr import Usd, Tf
 
 from .lib.qt import report_error
 from .lib.usd import rename_prim
@@ -37,6 +37,23 @@ class HierarchyModel(QtCore.QAbstractItemModel):
     """
     PrimRole = QtCore.Qt.UserRole + 1
 
+    # Constants for RectDataRole
+    IsDefaultPrimRect = {
+        "text": "DFT",
+        "tooltip": "This prim is the default prim on the stage's root layer.",
+        "background-color": "#553333"
+    }
+    HasReferencesRect = {
+        "text": "REF",
+        "tooltip": "This prim has one or more references and/or payloads.",
+        "background-color": "#333355"
+    }
+    HasVariantSetsRect = {
+        "text": "VAR",
+        "tooltip": "One or more variant sets exist on this prim.",
+        "background-color": "#335533"
+    }
+
     def __init__(
         self,
         stage: Usd.Stage=None,
@@ -59,7 +76,7 @@ class HierarchyModel(QtCore.QAbstractItemModel):
 
         self._predicate = predicate
         self._stage = None
-        self._index: Union[None, HierarchyCache] = None
+        self._cache: Optional[HierarchyCache] = None
         self._listeners = []
         self._icon_provider = PrimTypeIconProvider()
         self.log = logging.getLogger("HierarchyModel")
@@ -88,13 +105,13 @@ class HierarchyModel(QtCore.QAbstractItemModel):
         self._stage = stage
         with self.reset_model():
             if self._is_stage_valid():
-                self._index = HierarchyCache(
+                self._cache = HierarchyCache(
                     root=stage.GetPrimAtPath("/"),
                     predicate=self._predicate
                 )
                 self.register_listeners()
             else:
-                self._index = None
+                self._cache = None
 
     def _is_stage_valid(self):
         return self._stage and self._stage.GetPseudoRoot()
@@ -161,16 +178,16 @@ class HierarchyModel(QtCore.QAbstractItemModel):
                 ):
                     index_to_path[index] = index_path
 
-            self._index.resync_subtrees(resynced_paths)
+            self._cache.resync_subtrees(resynced_paths)
 
             from_indices = []
             to_indices = []
             for index in index_to_path:
                 path = index_to_path[index]
 
-                if path in self._index:
-                    new_proxy = self._index.get_proxy(path)
-                    new_row = self._index.get_row(new_proxy)
+                if path in self._cache:
+                    new_proxy = self._cache.get_proxy(path)
+                    new_row = self._cache.get_row(new_proxy)
 
                     if index.row() != new_row:
                         for _i in range(
@@ -185,35 +202,26 @@ class HierarchyModel(QtCore.QAbstractItemModel):
                     to_indices.append(QtCore.QModelIndex())
             self.changePersistentIndexList(from_indices, to_indices)
 
-    def _prim_to_row_index(self,
-                           path: Sdf.Path) -> Optional[QtCore.QModelIndex]:
-        """Given a path, retrieve the appropriate model index."""
-        if path in self._index:
-            proxy = self._index[path]
-            row = self._index.get_row(proxy)
-            return self.createIndex(row, 0, proxy)
-
     def _index_to_prim(self,
-                       model_index: QtCore.QModelIndex) -> Optional[Usd.Prim]:
+                       model_index: QtCore.QModelIndex) -> Usd.Prim:
         """Retrieve the prim for the input model index
 
         External clients should use `UsdQt.roles.HierarchyPrimRole` to access
         the prim for an index.
         """
-        if model_index.isValid():
-            proxy = model_index.internalPointer()  # -> Proxy
-            if type(proxy) is Proxy:
-                return proxy.get_prim()
+        return self.get_item_proxy(model_index).get_prim()
 
     # region Qt methods
     def flags(self, index):
         # Make name editable
         if index.column() == 0:
-            return (
-                QtCore.Qt.ItemIsEnabled
-                | QtCore.Qt.ItemIsSelectable
-                | QtCore.Qt.ItemIsEditable
-            )
+            prim: Usd.Prim = index.data(self.PrimRole)
+            if prim and not prim.IsPseudoRoot():
+                return (
+                    QtCore.Qt.ItemIsEnabled
+                    | QtCore.Qt.ItemIsSelectable
+                    | QtCore.Qt.ItemIsEditable
+                )
         return super(HierarchyModel, self).flags(index)
 
     def setData(self, index, value, role):
@@ -240,11 +248,13 @@ class HierarchyModel(QtCore.QAbstractItemModel):
         if parent.column() > 0:
             return 0
 
-        if not parent.isValid():
-            return 1
+        proxy = self.get_item_proxy(parent)
+        return self._cache.get_child_count(proxy)
 
-        parent_proxy = parent.internalPointer()
-        return self._index.get_child_count(parent_proxy)
+    def get_item_proxy(self, index: QtCore.QModelIndex) -> Proxy:
+        if not index.isValid():
+            return self._cache.root
+        return index.internalPointer()  # noqa
 
     def index(self, row, column, parent):
         if not self._is_stage_valid():
@@ -254,13 +264,8 @@ class HierarchyModel(QtCore.QAbstractItemModel):
             self.log.debug("Index does not exist: %s %s %s", row, column, parent)
             return QtCore.QModelIndex()
 
-        if not parent.isValid():
-            # We assume the root has already been registered.
-            root = self._index.root
-            return self.createIndex(row, column, root)
-
-        parent_proxy = parent.internalPointer()
-        child = self._index.get_child(parent_proxy, row)
+        parent_proxy = self.get_item_proxy(parent)
+        child = self._cache.get_child(parent_proxy, row)
         return self.createIndex(row, column, child)
 
     def parent(self, index):
@@ -274,11 +279,12 @@ class HierarchyModel(QtCore.QAbstractItemModel):
         if proxy is None:
             return QtCore.QModelIndex()
 
-        if self._index.is_root(proxy):
+        parent_proxy = self._cache.get_parent(proxy)
+        if not parent_proxy or self._cache.is_root(parent_proxy):
+            # We do not display the root
             return QtCore.QModelIndex()
 
-        parent_proxy = self._index.get_parent(proxy)
-        parent_row = self._index.get_row(parent_proxy)
+        parent_row = self._cache.get_row(parent_proxy)
         return self.createIndex(parent_row, index.column(), parent_proxy)
 
     def data(self, index, role):
@@ -308,25 +314,11 @@ class HierarchyModel(QtCore.QAbstractItemModel):
             prim = index.internalPointer().get_prim()
             rects = []
             if prim == self.stage.GetDefaultPrim():
-                rects.append(
-                    {"text": "DFT",
-                     "tooltip": "This prim is the default prim on "
-                                "the stage's root layer.",
-                     "background-color": "#553333"}
-                )
+                rects.append(self.IsDefaultPrimRect)
             if prim.HasAuthoredPayloads() or prim.HasAuthoredReferences():
-                rects.append(
-                    {"text": "REF",
-                     "tooltip": "This prim has one or more references "
-                                "and/or payloads.",
-                     "background-color": "#333355"},
-                )
+                rects.append(self.HasReferencesRect)
             if prim.HasVariantSets():
-                rects.append(
-                    {"text": "VAR",
-                     "tooltip": "One or more variant sets exist on this prim.",
-                     "background-color": "#335533"},
-                )
+                rects.append(self.HasVariantSetsRect)
 
             return rects
     # endregion

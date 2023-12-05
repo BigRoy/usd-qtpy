@@ -790,9 +790,11 @@ class LayerTreeWidget(QtWidgets.QWidget):
 
     def showEvent(self, event):
         self.model.register_listeners()
+        super(LayerTreeWidget, self).showEvent(event)
 
     def hideEvent(self, event: QtGui.QCloseEvent) -> None:
         # TODO: This should be on a better event when we know the window
         #   will be gone and unused after. The `closeEvent` doesn't seem
         #   to trigger by default on closing a parent dialog?
         self.model.revoke_listeners()
+        super(LayerTreeWidget, self).hideEvent(event)
