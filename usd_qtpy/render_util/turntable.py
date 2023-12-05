@@ -4,10 +4,11 @@ from typing import Union
 
 from pxr import Usd, UsdGeom
 from pxr import Sdf, Gf
+from qtpy import QtCore
 
 from . import framing_camera
 from ..lib import usd
-
+from ..layer_editor import LayerTreeWidget, LayerStackModel
 
 def create_turntable_xform(stage: Usd.Stage, path: Union[Sdf.Path, str], name: str = "turntableXform",
                            length: int = 100, frame_start: int = 0, repeats: int = 1) -> UsdGeom.Xform:
@@ -102,6 +103,8 @@ def turn_tableize_prim(stage: Usd.Stage, path: Union[Sdf.Path,str],
 
     
 def _xform_parent_test(stage: Usd.Stage, name: str = "containerXform"):
+    """Works"""
+
     from_path = Sdf.Path("/Kitchen_set") # hardcoded for now
     to_path = Sdf.Path(f"/{name}")
 
@@ -110,3 +113,33 @@ def _xform_parent_test(stage: Usd.Stage, name: str = "containerXform"):
     usd.parent_prims([child_prim],to_path)
 
 
+def turntable_from_file(stage: Usd.Stage, layer_editor: LayerTreeWidget):
+    # WARNING: HARDCODED for now
+    
+    if index := layer_editor.view.selectedIndexes():
+        layertree_index = index[0]
+    else:
+        layertree_index = layer_editor.view.indexAt(QtCore.QPoint(0,0))
+    
+    layer: Sdf.Layer = layertree_index.data(LayerStackModel.LayerRole)
+
+    if not layer:
+        return
+
+    filename = R"X:\VAULT_PROJECTS\COLORBLEED\Kitchen_set\Turntable.usda"
+    layer.subLayerPaths.append(filename)
+    
+    # this needs to be done the other way around
+    # load turntable stage,
+    # sublayer scene
+    # parent scene to /turntable/parent
+
+    subject_prim = stage.GetPrimAtPath("/Kitchen_set")
+    print(subject_prim)
+    goal_path = Sdf.Path("/turntable")
+
+    parent_prim = stage.GetPrimAtPath(goal_path)
+    print(parent_prim)
+
+    # parenting the sublayered scene to base scene (unsuccesfully)
+    usd.parent_prims([parent_prim],Sdf.Path("/Kitchen_set"))

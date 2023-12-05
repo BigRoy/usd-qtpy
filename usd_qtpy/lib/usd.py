@@ -321,28 +321,3 @@ def remove_spec(spec):
 
     else:
         raise TypeError(f"Unsupported spec type: {spec}")
-
-
-def traverse_prim_descendants(stage: Usd.Stage, path: Union[Sdf.Path,str]) -> list[Usd.Prim]:
-    """
-    DFS Iterate through hierarchy of primitive at path.
-    """
-    if isinstance(path,str):
-        path = Sdf.Path(path)
-
-    prim = stage.GetPrimAtPath(path)
-
-    def recurse_children(prim: Usd.Prim, carry: list[Usd.Prim] = None) -> list[Usd.Prim]:
-        if carry is None:
-            carry = []
-        
-        children: list[Usd.Prim] = prim.GetAllChildren()
-        if children:
-            carry.extend(children)
-
-            for child in children:
-                carry = recurse_children(child,carry)
-        
-        return carry
-    
-    return [prim, *recurse_children(prim)]
