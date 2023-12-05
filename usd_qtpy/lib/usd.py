@@ -192,7 +192,25 @@ def rename_prim(prim: Usd.Prim, new_name: str) -> bool:
         return True
 
     prim_path = prim.GetPath()
-    new_prim_path = prim_path.GetParentPath().AppendChild(new_name)
+    new_prim_path = prim_path.ReplaceName(new_name)
+
+    # We want to map the path to the current edit target of its stage so that
+    # if the user is renaming a prim in an edit target currently editing
+    # within a variant set, that we rename that particular opinion. However,
+    # we only do that if the source prim path existed in the edit target
+    # otherwise we will edit it on the layer regularly
+    # WARNING This will crash on calls to `prim.GetPrimStack()` afterwards
+    #   See: https://forum.aousd.org/t/perform-namespace-edit-inside-a-variant-set-edit-target/1006
+    # stage = prim.GetStage()
+    # edit_target = stage.GetEditTarget()
+    # remapped_prim_path = edit_target.MapToSpecPath(prim_path)
+    # if (
+    #         prim_path != remapped_prim_path
+    # ):
+    #     logging.debug("Remapping prim path to within edit target: %s",
+    #                   remapped_prim_path)
+    #     prim_path = remapped_prim_path
+    #     new_prim_path = edit_target.MapToSpecPath(new_prim_path)
 
     stage = prim.GetStage()
     with Sdf.ChangeBlock():
@@ -203,6 +221,74 @@ def rename_prim(prim: Usd.Prim, new_name: str) -> bool:
                                src_prim_path=prim_path,
                                dest_prim_path=new_prim_path)
     return True
+
+
+def unique_name(stage: Usd.Stage, prim_path: Sdf.Path) -> Sdf.Path:
+    """Return Sdf.Path that is unique under the current composed stage.
+
+    Note that this technically does not ensure that the Sdf.Path does not
+    exist in any of the layers, e.g. it could be defined within a currently
+    unselected variant or a muted layer.
+
+    """
+    src = prim_path.pathString.rstrip("123456789")
+    i = 1
+    while stage.GetPrimAtPath(prim_path):
+        prim_path = Sdf.Path(f"{src}{i}")
+        i += 1
+    return prim_path
+
+
+def parent_prims(prims: list[Usd.Prim],
+                 new_parent: Sdf.Path,
+                 layers: list[Sdf.Layer] = None) -> bool:
+    """Move Prims to a new parent in given layers.
+
+    Note:
+        This will only reparent prims to the new parent if the new parent
+        exists in the layer.
+
+    Arguments:
+        prims (list[Usd.Prim]): The prims to move the new parent
+        new_parent (Sdf.Path): Parent path to be moved to.
+        layers (list[Sdf.Layer]): The layers to apply the reparenting
+            in. If None are provided the stage's full layer stack will be used.
+
+    """
+    if not prims:
+        return False
+
+    # Only consider prims not already parented to the new parent
+    prims = [
+        prim for prim in prims if prim.GetPath().GetParentPath() != new_parent
+    ]
+    if not prims:
+        return False
+
+    if layers is None:
+        stage = prims[0].GetStage()
+        layers = stage.GetLayerStack()
+
+    edit_batch = Sdf.BatchNamespaceEdit()
+    for prim in prims:
+        edit = Sdf.NamespaceEdit.Reparent(
+            prim.GetPath(),
+            new_parent,
+            -1
+        )
+        edit_batch.Add(edit)
+
+    any_edits_made = False
+    with Sdf.ChangeBlock():
+        for layer in layers:
+            applied = layer.Apply(edit_batch)
+            if applied:
+                any_edits_made = True
+                for edit in edit_batch.edits:
+                    repath_properties(layer,
+                                      edit.currentPath,
+                                      edit.newPath)
+    return any_edits_made
 
 
 def remove_spec(spec):
@@ -225,7 +311,12 @@ def remove_spec(spec):
         del spec.owner.properties[spec.name]
 
     elif isinstance(spec, Sdf.VariantSetSpec):
+        # Owner is Sdf.PrimSpec (or can also be Sdf.VariantSpec)
         del spec.owner.variantSets[spec.name]
+
+    elif isinstance(spec, Sdf.VariantSpec):
+        # Owner is Sdf.VariantSetSpec
+        spec.owner.RemoveVariant(spec)
 
     else:
         raise TypeError(f"Unsupported spec type: {spec}")

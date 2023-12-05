@@ -1,6 +1,7 @@
 import os
 import contextlib
 import logging
+import sys
 from functools import partial
 from typing import List
 
@@ -15,6 +16,15 @@ from .layer_diff import LayerDiffWidget
 from .resources import get_icon
 
 log = logging.getLogger(__name__)
+
+
+def get_tag_from_layer_identifier(identifier: str) -> str:
+    """Return the 'tag' from the anonymous layer identifier"""
+    if Sdf.Layer.IsAnonymousLayerIdentifier(identifier):
+        name, kwargs = Sdf.Layer.SplitIdentifier(identifier)
+        if name.count(":") > 1:
+            return name.rsplit(":", 1)[-1]
+    return ""
 
 
 def remove_sublayer(
@@ -226,6 +236,10 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
         with Sdf.ChangeBlock():
             for source_identifier, source_parent_identifier in sources:
 
+                if source_identifier == new_parent_layer.identifier:
+                    # Do nothing when trying to parent to itself
+                    continue
+
                 removed_index = None
                 source_parent_layer = None
                 if source_parent_identifier:
@@ -369,9 +383,30 @@ class LayerStackModel(AbstractTreeModelMixin, QtCore.QAbstractItemModel):
                 item_tree.add_items(layer_item, parent=parent)
 
                 for sublayer_path in layer.subLayerPaths:
-                    sublayer = Sdf.Layer.FindOrOpenRelativeToLayer(
-                        layer, sublayer_path
-                    )
+                    try:
+                        sublayer = Sdf.Layer.FindOrOpenRelativeToLayer(
+                            layer, sublayer_path
+                        )
+                    except Tf.ErrorException:
+                        # Unable to find or open the layer path
+                        log.warning(f"Unable to find or open layer: %s",
+                                    sublayer_path, exc_info=sys.exc_info())
+                        # Warning: This does not show as "dirty" even though
+                        #  the file does not exist on disk.
+                        sublayer = Sdf.Layer.CreateNew(
+                            sublayer_path
+                        )
+
+                    if sublayer is None:
+                        log.error(
+                            "Failed to create a layer for sublayer path: %s",
+                            sublayer_path
+                        )
+                        tag = get_tag_from_layer_identifier(sublayer_path)
+                        sublayer = Sdf.Layer.CreateAnonymous(tag)
+                        layer.UpdateCompositionAssetDependency(
+                            sublayer_path, sublayer.identifier
+                        )
                     add_layer(sublayer, parent=layer_item)
 
                 return layer_item
@@ -418,6 +453,9 @@ class LayerWidget(QtWidgets.QWidget):
 
         # Identifier label as display name
         label = QtWidgets.QLabel("", parent=self)
+        # No text interaction fixes drag behavior for labels with html italics
+        # formatting, e.g. `<i>text</i>`
+        label.setTextInteractionFlags(QtCore.Qt.NoTextInteraction)
 
         # Save changes button
         save = QtWidgets.QPushButton(get_icon("save"), "", self)
@@ -473,6 +511,10 @@ class LayerWidget(QtWidgets.QWidget):
         is_session_layer = stage.GetSessionLayer() == layer
 
         label_str = layer.GetDisplayName()
+        if not label_str:
+            # No display name is usually an anonymous layer without tag
+            label_str = "anonymousLayer" if layer.anonymous else "unknownLayer"
+
         if layer.anonymous:
             label_str = f"<i>{label_str}</i>"  # make anonymous layers italic
         if layer.dirty:
@@ -484,7 +526,7 @@ class LayerWidget(QtWidgets.QWidget):
         enabled.setChecked(not is_layer_muted)
         if is_root_layer or is_session_layer:
             enabled.setEnabled(False)
-        save.setHidden(not layer.dirty)
+        save.setVisible(layer.dirty or layer.anonymous)
         edit_target_btn.setEnabled(not is_layer_muted)
         edit_target_btn.setChecked(stage.GetEditTarget() == layer)
 
@@ -515,9 +557,28 @@ class LayerWidget(QtWidgets.QWidget):
             self.stage.MuteLayer(self.layer.identifier)
 
     def on_save_layer(self):
-        layer = self.layer
-        # TODO: Perform an actual save
-        # TODO: Prompt for filepath if layer is anonymous?
+        layer: Sdf.Layer = self.layer
+
+        if layer.anonymous:
+            # We must choose where to save the layer
+            filename, _selected_filter = QtWidgets.QFileDialog.getSaveFileName(
+                parent=self,
+                caption="Save anonymous USD file",
+                filter="USD (*.usd *.usda *.usdc);"
+            )
+            if not filename:
+                return
+            anonymous_identifier = layer.identifier
+            layer.identifier = filename
+            layer.Save()
+
+            for layer in self.stage.GetLayerStack():
+                layer.UpdateCompositionAssetDependency(anonymous_identifier,
+                                                       filename)
+            layer.UpdateAssetInfo()  # re-resolve the layer
+            self.update()
+            return
+
         # TODO: Allow making filepath relative to parent layer?
         log.debug(f"Saving: {layer}")
         layer.Save()
@@ -535,6 +596,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
         view = QtWidgets.QTreeView()
         view.setModel(model)
 
+        view.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         view.setDragDropMode(QtWidgets.QAbstractItemView.DragDrop)
         view.setDragDropOverwriteMode(False)
         view.setColumnHidden(1, True)
@@ -574,15 +636,22 @@ class LayerTreeWidget(QtWidgets.QWidget):
         )
         action.triggered.connect(partial(self.on_add_layer, index))
 
+        action = menu.addAction("Add anonymous layer")
+        action.setToolTip(
+            "Add a new anonymous sublayer under the selected parent layer."
+        )
+        action.triggered.connect(partial(self.on_add_anonymous_layer, index))
+
         if layer:
             action = menu.addAction("Reload")
-            action.setToolTip(
-                "Reloads the layer. This discards any unsaved local changes."
+            set_tips(
+                action,
+                "Reloads the layer.<br>"
+                "This discards any unsaved local changes.<br>"
+                "Reverts the layer to the file on disk (or empty if anonymous "
+                "layer.)"
             )
-            action.setStatusTip(
-                "Reloads the layer. This discards any unsaved local changes."
-            )
-            action.triggered.connect(lambda: layer.Reload())
+            action.triggered.connect(self.on_reload_layers)
 
             is_root_layer = layer == stage.GetRootLayer()
             is_session_layer = layer == stage.GetSessionLayer()
@@ -594,7 +663,7 @@ class LayerTreeWidget(QtWidgets.QWidget):
                     "Removes the layer from the layer stack. "
                     "Does not remove files from disk"
                 )
-                action.triggered.connect(partial(self.on_remove_layer, index))
+                action.triggered.connect(self.on_remove_layers)
 
             action = menu.addAction("Show as text")
             action.setToolTip(
@@ -665,17 +734,31 @@ class LayerTreeWidget(QtWidgets.QWidget):
             widget.edit_target.setChecked(layer == widget.layer)
             widget.edit_target.blockSignals(False)
             
-    def on_remove_layer(self, index):
-        parent_index = self.model.parent(index)
-        
-        layer = index.data(LayerStackModel.LayerRole)
-        parent_layer = parent_index.data(LayerStackModel.LayerRole)
-        if not layer or not parent_layer:
-            return
+    def on_remove_layers(self):
 
-        removed_index = remove_sublayer(layer.identifier, parent=parent_layer)
-        if removed_index is not None:
-            log.debug(f"Removed layer: {layer.identifier}")
+        indexes = self.view.selectionModel().selectedIndexes()
+        for index in indexes:
+            parent_index = self.model.parent(index)
+            layer = index.data(LayerStackModel.LayerRole)
+            parent_layer = parent_index.data(LayerStackModel.LayerRole)
+            if not layer or not parent_layer:
+                return
+
+            removed_index = remove_sublayer(layer.identifier,
+                                            parent=parent_layer)
+            if removed_index is not None:
+                log.debug(f"Removed layer: {layer.identifier}")
+
+    def on_reload_layers(self):
+
+        indexes = self.view.selectionModel().selectedIndexes()
+        for index in indexes:
+            parent_index = self.model.parent(index)
+            layer = index.data(LayerStackModel.LayerRole)
+            if not layer:
+                continue
+
+            layer.Reload()
 
     def on_add_layer(self, index):
         layer = index.data(LayerStackModel.LayerRole)
@@ -696,6 +779,14 @@ class LayerTreeWidget(QtWidgets.QWidget):
         for filename in filenames:
             log.debug("Adding sublayer: %s", filename)
             layer.subLayerPaths.append(filename)
+
+    def on_add_anonymous_layer(self, index):
+        layer = index.data(LayerStackModel.LayerRole)
+        if not layer:
+            return
+
+        anonymous_layer = Sdf.Layer.CreateAnonymous()
+        layer.subLayerPaths.append(anonymous_layer.identifier)
 
     def showEvent(self, event):
         self.model.register_listeners()

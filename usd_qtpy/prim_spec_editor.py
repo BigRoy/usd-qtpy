@@ -89,12 +89,14 @@ class StageSdfModel(TreeModel):
         "Layer": QtGui.QColor("#008EC5"),
         "PseudoRootSpec": QtGui.QColor("#A2D2EF"),
         "PrimSpec": QtGui.QColor("#A2D2EF"),
-        "VariantSetSpec": QtGui.QColor("#A2D2EF"),
         "RelationshipSpec": QtGui.QColor("#FCD057"),
         "AttributeSpec": QtGui.QColor("#FFC8DD"),
         "reference": QtGui.QColor("#C8DDDD"),
         "payload": QtGui.QColor("#DDC8DD"),
-        "variantSetName":  QtGui.QColor("#DDDDC8"),
+        "VariantSetSpec": QtGui.QColor("#AAE48B"),
+        "VariantSpec":  QtGui.QColor("#D6E8CC"),
+        "variantSetName":  QtGui.QColor("#D6E8CC"),
+        "variantSelections":  QtGui.QColor("#D6E8CC"),
     }
 
     def __init__(self, stage=None, parent=None):
@@ -117,7 +119,7 @@ class StageSdfModel(TreeModel):
         for layer in stage.GetLayerStack():
 
             layer_item = Item({
-                "name": layer.GetDisplayName(),
+                "name": layer.GetDisplayName() or layer.identifier,
                 "identifier": layer.identifier,
                 "specifier": None,
                 "type": layer.__class__.__name__
@@ -145,6 +147,10 @@ class StageSdfModel(TreeModel):
                     "type": spec.__class__.__name__
                 })
 
+                element_string = spec.path.elementString
+                if element_string and spec.name != element_string:
+                    spec_item["name"] = element_string
+
                 if hasattr(spec, "GetTypeName"):
                     spec_type_name = spec.GetTypeName()
                     icon = self._icon_provider.get_icon_from_type_name(
@@ -169,15 +175,8 @@ class StageSdfModel(TreeModel):
                     type_name = spec.typeName
                     spec_item["typeName"] = type_name
 
-                    for attr in [
-                        "variantSelections",
-                        "relocates",
-                        # Variant sets is redundant because these basically
-                        # refer to VariantSetSpecs which will actually be
-                        # traversed path in the layer anyway
-                        # TODO: Remove this commented key?
-                        # "variantSets"
-                    ]:
+                    def _add_map_item(attr):
+                        """Add MapProxyItem for list attribute on Spec"""
                         proxy = getattr(spec, attr)
 
                         # `prim_spec.variantSelections.keys()` can fail
@@ -185,7 +184,7 @@ class StageSdfModel(TreeModel):
                         try:
                             keys = list(proxy.keys())
                         except RuntimeError:
-                            continue
+                            return
 
                         for key in keys:
                             proxy_item = MapProxyItem(
@@ -194,17 +193,15 @@ class StageSdfModel(TreeModel):
                                 data={
                                     "name": key,
                                     "default": proxy.get(key),  # value
-                                    "type": attr
+                                    "type": attr,
+                                    "typeName": attr,
                                 }
                             )
                             spec_item.add_child(proxy_item)
 
-                    for key in [
-                        "variantSetName",
-                        "reference",
-                        "payload"
-                    ]:
-                        list_changes = getattr(spec, key + "List")
+                    def _add_list_item(attr):
+                        """Add ListProxyItem for list attribute on Spec"""
+                        list_changes = getattr(spec, attr + "List")
                         for change_type in LIST_ATTRS:
                             changes_for_type = getattr(list_changes,
                                                        change_type)
@@ -224,14 +221,26 @@ class StageSdfModel(TreeModel):
                                         "name": name,
                                         # Strip off "Items"
                                         "default": change_type[:-5],
-                                        "type": key,
-                                        "typeName": key,
+                                        "type": attr,
+                                        "typeName": attr,
                                         "parent": changes_for_type
                                     }
                                 )
                                 spec_item.add_child(list_change_item)
                         if list_changes:
-                            spec_item[key] = str(list_changes)
+                            spec_item[attr] = str(list_changes)
+
+                    # Add these types intermixed just so we order attributes
+                    # together nicely that are somewhat related, e.g. variant
+                    # information together
+                    for attr, add_fn in [
+                        ("reference", _add_list_item),
+                        ("payload", _add_list_item),
+                        ("relocates", _add_map_item),
+                        ("variantSelections", _add_map_item),
+                        ("variantSetName", _add_list_item),
+                    ]:
+                        add_fn(attr)
 
                 elif isinstance(spec, Sdf.AttributeSpec):
                     value = spec.default
@@ -267,7 +276,7 @@ class StageSdfModel(TreeModel):
 
         return super(StageSdfModel, self).flags(index)
 
-    def setData(self, index, value, role):
+    def setData(self, index, value, role) -> bool:
 
         if index.column() == 1:  # specifier
             item = index.internalPointer()
@@ -278,6 +287,9 @@ class StageSdfModel(TreeModel):
                 }
                 value = lookup[value]
                 spec.specifier = value
+                return True
+
+        return super(StageSdfModel, self).setData(index, value, role)
 
     def data(self, index, role):
 
@@ -290,6 +302,13 @@ class StageSdfModel(TreeModel):
         if index.column() == 2 and role == QtCore.Qt.DecorationRole:
             item = index.data(TreeModel.ItemRole)
             return item.get("icon")
+
+        if role == QtCore.Qt.ToolTipRole:
+            item = index.data(TreeModel.ItemRole)
+            path = item.get("path")
+            if path and isinstance(path, Sdf.Path):
+                path = path.pathString
+            return path
 
         return super(StageSdfModel, self).data(index, role)
 
@@ -326,23 +345,59 @@ class PrimSpectTypeFilterProxy(QtCore.QSortFilterProxyModel):
 class FilterListWidget(QtWidgets.QListWidget):
     def __init__(self):
         super(FilterListWidget, self).__init__()
-        self.addItems([
+
+        # Some labels are indented just to easily visually group some related
+        # options together
+        labels = [
             "Layer",
             # This is hidden since it's usually not filtered to
             # "PseudoRootSpec",
             "PrimSpec",
             "    reference",
             "    payload",
-            "    variantSetName",
+            "    relocates",
             "AttributeSpec",
             "RelationshipSpec",
             "VariantSetSpec",
+            "    VariantSpec",
+            "    variantSetName",
+            "    variantSelections",
+        ]
+        tooltips = {
+            "Layer": "A single <b>Layer</b> in the stage.",
+            "PrimSpec": "A <b>Prim</b> description",
+            "reference": "Represents a reference.",
+            "payload": (
+                "Represents a payload.<br>"
+                "Payloads are similar to prim references with the major "
+                "difference that payloads are explicitly loaded by the user."
+            ),
+            "relocates": "Namespace relocations specified on a prim",
+            "AttributeSpec": "A property that holds typed data.",
+            "RelationshipSpec": (
+                "A property that contains a reference to "
+                "one or more prim specs."
+            ),
+            "VariantSetSpec": "A variant set.",
+            "VariantSpec": "A single variant opinion for a variant set.",
+            "variantSetName": "Defines available variant set name on a prim.",
+            "variantSelections": (
+                "Defines the selected variant for a variant set."
+            )
+        }
 
-            # TODO: Still to be implemented in the StageSdfModel
-            # "variantSelections",
-            # "variantSets",
-            # "relocates"
-        ])
+        for label in labels:
+            type_name = label.lstrip(" ")
+            item = QtWidgets.QListWidgetItem(label, self)
+
+            # Set color
+            item.setData(QtCore.Qt.ForegroundRole,
+                         StageSdfModel.Colors.get(type_name))
+
+            tooltip = tooltips.get(type_name)
+            if tooltip:
+                item.setData(QtCore.Qt.ToolTipRole, tooltip)
+
         self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
 
 
@@ -484,7 +539,8 @@ class SpecEditsWidget(QtWidgets.QWidget):
 
         stage = self.model._stage
         for layer in stage.GetLayerStack():
-            action = move_menu.addAction(layer.GetDisplayName())
+            label = layer.GetDisplayName() or layer.identifier
+            action = move_menu.addAction(label)
             action.setData(layer)
 
         def move_to(action):
@@ -525,8 +581,9 @@ class SpecEditsWidget(QtWidgets.QWidget):
 
         with Sdf.ChangeBlock():
             for spec in specs:
-                log.debug(f"Removing spec: %s", spec.path)
-                remove_spec(spec)
+                if spec and not spec.expired:
+                    log.debug(f"Removing spec: %s", spec.path)
+                    remove_spec(spec)
             for deletable in deletables:
                 deletable.delete()
         return True
