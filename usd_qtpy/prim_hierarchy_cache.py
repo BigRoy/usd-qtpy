@@ -1,5 +1,5 @@
 import logging
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from pxr import Usd, Sdf
 
@@ -8,6 +8,7 @@ log = logging.getLogger(__name__)
 
 
 class Proxy:
+    """Item proxy for the HierarchyCache"""
     def __init__(self, prim: Usd.Prim):
         self._prim: Usd.Prim = prim
         self._children: List[Sdf.Path] = []
@@ -54,9 +55,6 @@ class HierarchyCache:
     def __contains__(self, item) -> bool:
         return item in self._path_to_proxy
 
-    def __getitem__(self, item):
-        return self.get_proxy(item)
-
     def get_proxy(self, path: Sdf.Path) -> Proxy:
         return self._path_to_proxy[path]
 
@@ -74,11 +72,11 @@ class HierarchyCache:
 
         return self._path_to_proxy[child_path]
 
-    def get_parent(self, proxy: Proxy):
+    def get_parent(self, proxy: Proxy) -> Optional[Proxy]:
         prim = proxy.get_prim()
         path = prim.GetPath()
         parent_path = path.GetParentPath()
-        return self._path_to_proxy[parent_path]
+        return self._path_to_proxy.get(parent_path, None)
 
     def get_child_count(self, proxy: Proxy) -> int:
         if not proxy or not proxy.get_prim():
@@ -127,7 +125,7 @@ class HierarchyCache:
             for child_path in original_children.union(new_children):
                 self._invalidate_subtree(child_path)
 
-    def is_root(self, proxy):
+    def is_root(self, proxy: Proxy) -> bool:
         return self._root.get_prim() == proxy.get_prim()
 
     def get_row(self, proxy: Proxy) -> int:
