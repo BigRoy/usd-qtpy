@@ -3,8 +3,9 @@ from functools import partial
 
 from qtpy import QtWidgets, QtCore, QtGui
 
-from pxr import Usd, UsdGeom, Tf
+from pxr import Usd, UsdGeom, Tf, Sdf
 from pxr.Usdviewq.stageView import StageView
+from pxr.Usdviewq.selectionDataModel import ALL_INSTANCES
 from pxr.Usdviewq import common
 from pxr.UsdAppUtils.complexityArgs import RefinementComplexities
 
@@ -15,6 +16,8 @@ try:
 except ImportError as exc:
     # TODO: Implement a Python implementation
     raise
+
+from .data_model import DataModel
 
 log = logging.getLogger(__name__)
 
@@ -219,10 +222,13 @@ class CustomStageView(StageView):
 
 
 class Widget(QtWidgets.QWidget):
-    def __init__(self, stage=None, parent=None):
+    def __init__(self, stage=None, data_model=None, parent=None):
         super(Widget, self).__init__(parent=parent)
 
-        self.model = StageView.DefaultDataModel()
+        if data_model is None:
+            data_model = DataModel()
+
+        self.model = data_model
         self.model.viewSettings.showHUD = False
         self.model.viewSettings.showBBoxes = False
         # self.model.viewSettings.selHighlightMode = "Always"
@@ -240,9 +246,8 @@ class Widget(QtWidgets.QWidget):
         self.timeline.frameChanged.connect(self.on_frame_changed)
         self.timeline.playbackStarted.connect(self.on_playback_started)
         self.timeline.playbackStopped.connect(self.on_playback_stopped)
-        # set button context menu policy
-        self.view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.view.customContextMenuRequested.connect(self.on_context_menu)
+        # Define what happens on clicks in the view
+        self.view.signalPrimSelected.connect(self.on_prim_selected)
 
         self.setAcceptDrops(True)
 
@@ -252,6 +257,148 @@ class Widget(QtWidgets.QWidget):
         # Set focus to the widget itself so that it's not the start
         # frame text edit that takes focus
         self.setFocus()
+
+    def on_prim_selected(
+            self,
+            path: Sdf.Path,
+            instance_index,
+            top_level_path: Sdf.Path,
+            top_level_instance_index,
+            point: QtCore.QPoint,
+            button: QtCore.Qt.MouseButton,
+            modifiers: QtCore.Qt.KeyboardModifiers
+    ):
+        """Handle mouse clicks / prim selections in the viewport
+
+        This pretty much mimics USD View app controller `onPrimSelected` one
+        to one.
+
+        """
+
+        def _force_focus_to_view():
+            # context menu steals mouse release event from the StageView.
+            # We need to give it one so it can track its interaction
+            # mode properly
+            event = QtGui.QMouseEvent(
+                QtCore.QEvent.MouseButtonRelease,
+                QtGui.QCursor.pos(),
+                QtCore.Qt.RightButton,
+                QtCore.Qt.MouseButtons(QtCore.Qt.RightButton),
+                QtCore.Qt.KeyboardModifiers()
+            )
+            QtWidgets.QApplication.sendEvent(self.view, event)
+
+        # Ignoring middle button until we have something
+        # meaningfully different for it to do
+        if button in [QtCore.Qt.LeftButton, QtCore.Qt.RightButton]:
+            # Expected context-menu behavior is that even with no
+            # modifiers, if we are activating on something already selected,
+            # do not change the selection
+            do_context = (button == QtCore.Qt.RightButton and path
+                         and path != Sdf.Path.emptyPath)
+            do_selection = True
+            if do_context:
+                for sel_prim in self.model.selection.getPrims():
+                    sel_path = sel_prim.GetPath()
+                    if (
+                            sel_path != Sdf.Path.absoluteRootPath and
+                            path.HasPrefix(sel_path)
+                    ):
+                        do_selection = False
+                        break
+
+            if do_selection:
+                self.model.selection.setPoint(point)
+
+                shift_pressed = modifiers & QtCore.Qt.ShiftModifier
+                ctrl_pressed = modifiers & QtCore.Qt.ControlModifier
+
+                if path != Sdf.Path.emptyPath:
+                    prim = self.model.stage.GetPrimAtPath(path)
+
+                    # Model picking ignores instancing, but selects the enclosing
+                    # model of the picked prim.
+                    if self.model.viewSettings.pickMode == common.PickModes.MODELS:
+                        if prim.IsModel():
+                            model = prim
+                        else:
+                            model = common.GetEnclosingModelPrim(prim)
+                        if model:
+                            prim = model
+                        instance_index = ALL_INSTANCES
+
+                    # Prim picking selects the top level boundable: either the
+                    # gprim, the top-level point instancer (if it's point
+                    # instanced), or the top level USD instance (if it's marked
+                    # instantiable), whichever is closer to namespace root.
+                    # It discards the instance index.
+                    elif self.model.viewSettings.pickMode == common.PickModes.PRIMS:
+                        top_level_prim = self.model.stage.GetPrimAtPath(top_level_path)
+                        if top_level_prim:
+                            prim = top_level_prim
+                        while prim.IsInstanceProxy():
+                            prim = prim.GetParent()
+                        instance_index = ALL_INSTANCES
+
+                    # Instance picking selects the top level boundable, like
+                    # prim picking; but if that prim is a point instancer or
+                    # a USD instance, it selects the particular instance
+                    # containing the picked object.
+                    elif self.model.viewSettings.pickMode == common.PickModes.INSTANCES:
+                        top_level_prim = self.model.stage.GetPrimAtPath(top_level_path)
+                        if top_level_prim:
+                            prim = top_level_prim
+                            instance_index = top_level_instance_index
+                        if prim.IsInstanceProxy():
+                            while prim.IsInstanceProxy():
+                                prim = prim.GetParent()
+                            instance_index = ALL_INSTANCES
+
+                    # Prototype picking selects a specific instance of the
+                    # actual picked gprim, if the gprim is point-instanced.
+                    # This differs from instance picking by selecting the gprim,
+                    # rather than the prototype subtree; and selecting only one
+                    # drawn instance, rather than all sub-instances of a top-level
+                    # instance (for nested point instancers).
+                    # elif self.model.viewSettings.pickMode == PickModes.PROTOTYPES:
+                    # Just pass the selection info through!
+                    if shift_pressed and ctrl_pressed:
+                        # Clicking prim while holding shift+ctrl adds it to the
+                        # selection.
+                        self.model.selection.addPrim(prim, instance_index)
+                    elif ctrl_pressed:
+                        # Clicking prim while holding shift subtracts from the
+                        # selection.
+                        self.model.selection.removePrim(prim, instance_index)
+                    elif shift_pressed:
+                        # Clicking prim while holding shift toggles it in the
+                        # selection.
+                        self.model.selection.togglePrim(prim, instance_index)
+                    else:
+                        # Clicking prim with no modifiers sets it as the
+                        # selection.
+                        self.model.selection.switchToPrimPath(
+                            prim.GetPath(), instance_index)
+
+                elif not shift_pressed and not ctrl_pressed:
+                    # Clicking the background with no modifiers clears the
+                    # selection.
+                    self.model.selection.clear()
+
+            if do_context:
+                self.on_prim_select_context_menu(path)
+                _force_focus_to_view()
+                return
+
+        if button == QtCore.Qt.RightButton:
+            # Pressed outside a prim, show regular context menu
+            self.on_context_menu()
+            _force_focus_to_view()
+            return
+
+        # Retain focus on the actual view so we can handle key press events
+        # on normal mouse clicks
+        self.view.setFocus()
 
     def refresh(self):
         log.debug("Refresh viewer")
@@ -272,7 +419,12 @@ class Widget(QtWidgets.QWidget):
             self.refresh()
             return
 
-    def on_context_menu(self, point):
+    def on_prim_select_context_menu(self, path: Sdf.Path):
+        """Context menu dedicated for right click on a prim in the view"""
+        print(f"Clicked: {path}")
+        raise NotImplementedError("To be implemented")
+
+    def on_context_menu(self):
         # TODO: Context menu should not show on "zoom in/out"
         #  but only on right click itself
 
@@ -418,7 +570,7 @@ class Widget(QtWidgets.QWidget):
         if not aov_menu.actions():
             aov_menu.setEnabled(False)
 
-        menu.exec_(self.view.mapToGlobal(point))
+        menu.exec_(QtGui.QCursor.pos())
 
     def set_camera(self, prim):
         self.model.viewSettings.cameraPrim = prim
@@ -477,7 +629,6 @@ class Widget(QtWidgets.QWidget):
     def keyPressEvent(self, event):
         # Implement some shortcuts for the widget
         # todo: move this code
-
         key = event.key()
         # TODO: Add CTRL + R for "quick render or playblast"
         if key == QtCore.Qt.Key_Space:
@@ -486,6 +637,13 @@ class Widget(QtWidgets.QWidget):
             # Reframe the objects
             self.view.updateView(resetCam=True,
                                  forceComputeBBox=True)
+        elif key == QtCore.Qt.Key_A:
+            # Frame all
+            view = self.view
+            view.switchToFreeCamera(False)
+            bbox = view.getStageBBox()
+            fit = 1.2
+            self.model.viewSettings.freeCamera.frameSelection(bbox, fit)
         elif key == QtCore.Qt.Key_R:
             # Reframe the objects
             self.refresh()
