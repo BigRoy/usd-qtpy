@@ -53,7 +53,8 @@ def _savepicture_dialog(stage: Usd.Stage,
         filename = _rectify_path_framenumberspec(filename)    
     
     # ensure camera aspect ratio
-
+    # Aperture size (24) is based on the size of a full frame SLR camera sensor
+    # https://en.wikipedia.org/wiki/Image_sensor_format#Common_image_sensor_formats
     aspect_ratio: float = width / float(height)
     camera.CreateHorizontalApertureAttr(24 * aspect_ratio)
     camera.CreateHorizontalApertureOffsetAttr(0)
