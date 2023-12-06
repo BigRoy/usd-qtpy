@@ -64,9 +64,12 @@ def create_perspective_camera_in_stage(stage: Usd.Stage,
     
     camera = UsdGeom.Camera.Define(stage, path)
 
+    # Focus at infinity
     camera.CreateFocusDistanceAttr(168.60936)
     camera.CreateFStopAttr(0)
     
+    # Aperture size (24) is based on the size of a full frame SLR camera sensor
+    # https://en.wikipedia.org/wiki/Image_sensor_format#Common_image_sensor_formats
     camera.CreateHorizontalApertureAttr(24 * aspect_ratio)
     camera.CreateHorizontalApertureOffsetAttr(0)
     camera.CreateVerticalApertureAttr(24)
