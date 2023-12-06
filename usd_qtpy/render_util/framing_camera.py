@@ -19,8 +19,7 @@ def create_framing_camera_in_stage(stage: Usd.Stage,
                                    name: str = "framingCam", 
                                    fit: float = 1,
                                    width: int = 16, 
-                                   height: int = 9, 
-                                   for_turntable: bool = False) -> UsdGeom.Camera:
+                                   height: int = 9) -> UsdGeom.Camera:
     """
     Adds a camera that frames the whole stage.
     Can be specified to have a different aspect ratio, this will affect the sensor size internally.
@@ -81,19 +80,6 @@ def _orient_to_z_up(xformable: UsdGeom.Xformable):
     """Rotate around X-axis by 90 degrees to orient for Z-up axis."""
     xformable.AddRotateXOp(UsdGeom.XformOp.PrecisionDouble).Set(90)
 
-def camera_orient_to_stage_up(camera: UsdGeom.Camera, stage: Usd.Stage, is_z_up: bool = None):
-    if is_z_up is None:
-        is_z_up = get_stage_up(stage) == "Z"
-
-    if not is_z_up:
-        return # do nothing when Y is up and all is good and right in the world.
-
-    from pxr.UsdGeom import XformOp
-
-    cam_prim = camera.GetPrim()
-    xform_cam = UsdGeom.Xformable(cam_prim)
-    xform_cam.AddRotateXOp(XformOp.PrecisionDouble).Set(90)
-
 def set_first_translation(xformable: UsdGeom.Xformable,
                           translation: Gf.Vec3d) -> UsdGeom.XformOp:
     """Apply translation to first found translation operation in given Camera.
@@ -111,31 +97,6 @@ def set_first_translation(xformable: UsdGeom.Xformable,
 
     translate_op.Set(translation)
     return translate_op
-
-def camera_apply_translation(camera: UsdGeom.Camera, translation: Gf.Vec3d):
-    """
-    Apply translation to first found translation operation in given Camera.
-    If no tranlation operation is found, it will be added.
-    """
-    # TODO: Make this generic
-
-    from pxr.UsdGeom import XformOp
-    
-    cam_prim = camera.GetPrim()
-    xform_cam = UsdGeom.Xformable(cam_prim)
-    
-    translate_op = None
-    # check for existing translation operation, if not found, add one to stack.
-    for op in xform_cam.GetOrderedXformOps():
-        op: XformOp
-        if op.GetOpType() == XformOp.TypeTranslate:
-            translate_op = op
-            break
-    else:
-        translate_op = xform_cam.AddTranslateOp(XformOp.PrecisionDouble)
-
-    translate_op.Set(translation)
-
 
 def set_camera_clippingplanes_from_bounds(camera: UsdGeom.Camera,
                                           bounds: Gf.Range3d,
