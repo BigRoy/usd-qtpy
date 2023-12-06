@@ -7,7 +7,6 @@ from pxr import Sdf, Gf
 from qtpy import QtCore
 
 from . import framing_camera
-from ..lib import usd
 from ..layer_editor import LayerTreeWidget, LayerStackModel
 
 
