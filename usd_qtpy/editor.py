@@ -131,7 +131,7 @@ class EditorWindow(QtWidgets.QWidget):
             from pxr import Sdf
             framecam = render_util.create_turntable_camera(stage, Sdf.Path("/"))
             render_util.render_playblast(stage, 
-                                         R"C:\dump\turntable_2\centered_turningtableview_##.png", 
+                                         R"C:\dump\turntable_3\centered_turningtableview_##.png", 
                                          "0:99", 
                                          1920, 
                                          renderer="GL", 

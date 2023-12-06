@@ -226,9 +226,10 @@ def render_playblast(stage: Usd.Stage,
             renderer = "GL"
 
     # validate render engine
-    renderer = get_renderplugin_by_display_name(renderer)
     if not check_renderplugin_name(renderer):
         raise ValueError("Render plugin arguement invalid")
+    # Get the proper plugin name from the "Nice name"
+    renderer = get_renderplugin_by_display_name(renderer)
 
     # No Camera: Assume scene wide camera (same behavior as usdrecord)
     if not camera:

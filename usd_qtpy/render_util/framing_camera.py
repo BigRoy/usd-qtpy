@@ -35,7 +35,6 @@ def create_framing_camera_in_stage(stage: Usd.Stage,
     # Do prerequisite math so that functions don't have to run these same operations.
 
     bounds = get_stage_boundingbox(stage)
-    
 
     is_z_up = (get_stage_up(stage) == "Z")
 
@@ -44,23 +43,8 @@ def create_framing_camera_in_stage(stage: Usd.Stage,
     # setup attributes in camera
     set_camera_clippingplanes_from_bounds(camera, bounds, is_z_up, distance_to_stage)
 
-    # set center point to vertical axis center, depth axis placed back to frame without bounds compensation, 
-    # and the tangential axis to 0 
-    # bounds_min, bounds_max = bounds.GetMin(), bounds.GetMax()
-    # centroid = (bounds_min + bounds_max) / 2
-    # 
-    # if for_turntable:
-    #     if is_z_up:
-    #         translation = Gf.Vec3d(0, translation[1] + centroid[1], translation[2])
-    #     else:
-    #         translation = Gf.Vec3d(0, translation[1], translation[2] - centroid[2])
-    
-    # translate THEN rotate. Translation is always done locally. 
-    # If this needs to be switched around, swizzle translation Vec3d.
     translation = calculate_camera_position(bounds, is_z_up, distance_to_stage)
     set_first_translation(camera, translation)
-
-    # camera_apply_translation(camera, translation)
 
     if is_z_up:
         _orient_to_z_up(camera)
