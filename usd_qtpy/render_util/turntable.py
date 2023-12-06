@@ -1,5 +1,4 @@
-# Turn table utilities.
-# oh how the turns have tabled
+# Turntable utilities
 from typing import Union
 
 from pxr import Usd, UsdGeom
