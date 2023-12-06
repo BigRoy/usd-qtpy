@@ -97,7 +97,6 @@ def turntable_from_file(stage: Usd.Stage, layer_editor: LayerTreeWidget):
     """
     WARNING, THIS FUNCTION IS UNDER CONSTRUCTION
     """
-    
     # WARNING: HARDCODED for now
     
     if index := layer_editor.view.selectedIndexes():
@@ -124,29 +123,27 @@ def turntable_from_file(stage: Usd.Stage, layer_editor: LayerTreeWidget):
     # Save stage somewhere in a temporary folder,
     # create a new stage, add turntable preset 
 
-    #subject_prim = stage.GetPrimAtPath("/Kitchen_set")
-    #print(subject_prim)
-    #goal_path = Sdf.Path("/turntable")
+    # subject_prim = stage.GetPrimAtPath("/Kitchen_set")
+    # print(subject_prim)
+    # goal_path = Sdf.Path("/turntable")
 
-    #parent_prim = stage.GetPrimAtPath(goal_path)
-    #print(parent_prim)
+    # parent_prim = stage.GetPrimAtPath(goal_path)
+    # print(parent_prim)
     
-    ## parenting the sublayered scene to base scene (unsuccesfully)
-    #usd.parent_prims([parent_prim],Sdf.Path("/Kitchen_set"))
+    # # parenting the sublayered scene to base scene (unsuccessfully)
+    # usd.parent_prims([parent_prim], Sdf.Path("/Kitchen_set"))
 
     # Create a stage in memory, then add a reference to the turntable first.
     ttable_stage = Usd.Stage.CreateInMemory()
 
     turntable_ref = ttable_stage.OverridePrim("/turntable_reference")
     turntable_ref.GetReferences().AddReference(filename)
-    
 
-    # TODO: check if parent prim and is of type  is actually there
+    # TODO: check if parent prim and is of type is actually there
     # Create a reference within the parent of the 
     subject_ref = ttable_stage.OverridePrim("/turntable_reference/parent/subject_reference")
     subject_ref.GetReferences().AddReference(kitchenfile)
 
     print(ttable_stage.GetRootLayer().ExportToString())
-    
     
     ttable_stage.Export(R"X:\VAULT_PROJECTS\COLORBLEED\test_turntable.usd")

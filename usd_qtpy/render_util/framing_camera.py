@@ -15,7 +15,7 @@ def get_stage_up(stage: Usd.Stage) -> str:
 
 
 def create_framing_camera_in_stage(stage: Usd.Stage,
-                                   root: Union[Sdf.Path,str],
+                                   root: Union[Sdf.Path, str],
                                    name: str = "framingCam",
                                    fit: float = 1,
                                    width: int = 16,

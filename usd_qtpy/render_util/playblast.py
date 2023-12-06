@@ -161,7 +161,7 @@ def render_playblast(
         width (int): The resolution width to output.
             The height will be based on camera properties.
         camera (UsdGeom.Camera): The camera to render from.
-        complexity (Union[str,int]): Complexity to render, defaults to "High"
+        complexity (Union[str, int]): Complexity to render, defaults to "High"
         renderer (str): The renderer to render with. Defaults to the current
             platform's default renderer, GL or Metal (osx)
         colormode (str): The color management mode to render with.
