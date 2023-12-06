@@ -1,5 +1,6 @@
 # Turn table utilities.
 # oh how the turns have tabled
+
 from typing import Union
 import os
 import math
@@ -9,7 +10,6 @@ from pxr import Sdf, Gf
 from qtpy import QtCore
 
 from . import framing_camera, playblast
-from ..lib import usd
 from ..layer_editor import LayerTreeWidget, LayerStackModel
 
 def create_turntable_xform(stage: Usd.Stage, path: Union[Sdf.Path, str], name: str = "turntableXform",
@@ -28,13 +28,13 @@ def create_turntable_xform(stage: Usd.Stage, path: Union[Sdf.Path, str], name: s
     
     path = path.AppendPath(name)
 
-    z_up = (framing_camera._stage_up(stage) == "Z")
+    z_up = (framing_camera.get_stage_up(stage) == "Z")
     
     bounds = framing_camera.get_stage_boundingbox(stage)
     centroid = (bounds.GetMin() + bounds.GetMax()) / 2
 
     xform = UsdGeom.Xform.Define(stage, path)
-    
+
     spinop = None
     translateop = xform.AddTranslateOp(XformOp.PrecisionDouble)
 
@@ -84,7 +84,7 @@ def turn_tableize_prim(stage: Usd.Stage, path: Union[Sdf.Path,str],
 
     prim = stage.GetPrimAtPath(path)
 
-    z_up = (framing_camera._stage_up(stage) == "Z")
+    z_up = (framing_camera.get_stage_up(stage) == "Z")
 
     xformable = UsdGeom.Xformable(prim)
     spinop = None
@@ -124,7 +124,7 @@ def turntable_from_file(stage: Usd.Stage,
     # TODO: Infer frame range from turntable stage.
 
     # collect info about subject
-    subject_zup = framing_camera._stage_up(stage) == "Z"
+    subject_zup = framing_camera.get_stage_up(stage) == "Z"
     
     # export subject
     turntable_filename = R"X:\VAULT_PROJECTS\COLORBLEED\Kitchen_set\Turntable_2.usda"
@@ -171,6 +171,8 @@ def turntable_from_file(stage: Usd.Stage,
                            " nessecary components.\n" + "\n".join(missing))
 
     # Create a reference within the parent of the new turntable stage
+    # References do need xformables created.
+
     ref_adress ="/turntable_reference/parent/subject_reference"
     subject_ref = ttable_stage.OverridePrim(ref_adress)
     subject_ref.GetReferences().AddReference(subject_filename)
@@ -236,7 +238,7 @@ def turntable_from_file(stage: Usd.Stage,
 
 def file_is_zup(path: str) -> bool:
     stage = Usd.Stage.CreateInMemory(path)
-    return framing_camera._stage_up(stage) == "Z"
+    return framing_camera.get_stage_up(stage) == "Z"
     
 
 def layer_from_layereditor(layer_editor:

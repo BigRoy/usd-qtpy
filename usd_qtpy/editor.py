@@ -105,7 +105,8 @@ class EditorWindow(QtWidgets.QWidget):
         # Render menu
 
         render_menu = menubar.addMenu("Render")
-        render_labels = "Playblast", "Snapshot", "Snapshot Framing Camera", "Render Turntable", "Import Turntable"
+        render_labels = "Playblast", "Snapshot", "Snapshot Framing Camera",\
+                        "Render Turntable", "Import Turntable"
         render_actions = {label : render_menu.addAction(label) for label in render_labels}
 
         # Testing 
@@ -116,19 +117,29 @@ class EditorWindow(QtWidgets.QWidget):
 
         def snap_framingcam(stage):
             from pxr import Sdf
-            framecam = render_util.create_framing_camera_in_stage(stage, Sdf.Path("/"),fit = 1.1)
-            render_util.render_playblast(stage, R"C:\dump\framingview##.##.png", "1", 1920, renderer="GL", camera = framecam)
+            framecam = render_util.create_framing_camera_in_stage(stage, Sdf.Path("/"), fit=1.1)
+            render_util.render_playblast(stage, 
+                                         R"C:\dump\framingview##.##.png", 
+                                         "1", 
+                                         1920, 
+                                         renderer="GL", 
+                                         camera=framecam)
 
         add_framecam = partial(snap_framingcam, self._stage)
 
         def render_turntable(stage):
             from pxr import Sdf
-            framecam = render_util.create_turntable_camera(stage,Sdf.Path("/"))
-            render_util.render_playblast(stage, R"C:\dump\turntable_2\centered_turningtableview_##.png", "0:99", 1920, renderer="GL", camera = framecam)
+            framecam = render_util.create_turntable_camera(stage, Sdf.Path("/"))
+            render_util.render_playblast(stage, 
+                                         R"C:\dump\turntable_2\centered_turningtableview_##.png", 
+                                         "0:99", 
+                                         1920, 
+                                         renderer="GL", 
+                                         camera=framecam)
 
         render_ttable = partial(render_turntable, self._stage)
 
-        import_ttable = partial(render_util.turntable.turntable_from_file,self._stage)
+        import_ttable = partial(render_util.turntable.turntable_from_file, self._stage)
 
         render_actions["Snapshot"].triggered.connect(render_snap)
         render_actions["Snapshot Framing Camera"].triggered.connect(add_framecam)
