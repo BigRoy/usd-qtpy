@@ -3,14 +3,14 @@
 from typing import Union
 import os
 
-from pxr import Usd, UsdGeom
-from pxr import Sdf, Gf
+from pxr import Usd, UsdGeom, Sdf, Gf
 from qtpy import QtCore
 
 from . import framing_camera, playblast
 from ..layer_editor import LayerTreeWidget, LayerStackModel
 
-def create_turntable_xform(stage: Usd.Stage, 
+
+def create_turntable_xform(stage: Usd.Stage,
                            path: Union[Sdf.Path, str], 
                            name: str = "turntableXform",
                            length: int = 100, 
@@ -23,7 +23,7 @@ def create_turntable_xform(stage: Usd.Stage,
     """
     from pxr.UsdGeom import XformOp
     
-    if isinstance(path,str):
+    if isinstance(path, str):
         path = Sdf.Path(path)
     
     path = path.AppendPath(name)
@@ -41,21 +41,25 @@ def create_turntable_xform(stage: Usd.Stage,
         translate = Gf.Vec3d(centroid[0], 0, centroid[2]) # Y axis = floor normal
 
     # Move to centroid of bounds, rotate, move back to origin
-    xform.AddTranslateOp(XformOp.PrecisionDouble,"rotPivot").Set(translate)
+    xform.AddTranslateOp(XformOp.PrecisionDouble, "rotPivot").Set(translate)
     add_turntable_spin_op(xform, length, frame_start, repeats, is_z_up)
-    xform.AddTranslateOp(XformOp.PrecisionDouble,"rotPivot",isInverseOp=True)
+    xform.AddTranslateOp(XformOp.PrecisionDouble, "rotPivot", isInverseOp=True)
     
     return xform
 
 
-def create_turntable_camera(stage: Usd.Stage, root: Union[Sdf.Path,str], 
-                            name: str = "turntableCam", fit: float = 1.1,
-                            width: int = 16, height: int = 9, 
-                            length: int = 100, frame_start: int = 0) -> UsdGeom.Camera:
+def create_turntable_camera(stage: Usd.Stage,
+                            root: Union[Sdf.Path, str] = Sdf.Path("/"),
+                            name: str = "turntableCam",
+                            fit: float = 1.1,
+                            width: int = 16,
+                            height: int = 9,
+                            length: int = 100,
+                            frame_start: int = 0) -> UsdGeom.Camera:
     """
     Creates a complete setup with a stage framing perspective camera, within an animated, rotating Xform.
     """
-    if isinstance(root,str):
+    if isinstance(root, str):
         root = Sdf.Path(root)
 
     xform = create_turntable_xform(
@@ -67,6 +71,7 @@ def create_turntable_camera(stage: Usd.Stage, root: Union[Sdf.Path,str],
         stage, xform_path, name, fit, width, height, True)
 
     return cam
+
 
 def add_turntable_spin_op(xformable: UsdGeom.Xformable,
                           length: int = 100,
@@ -91,8 +96,9 @@ def add_turntable_spin_op(xformable: UsdGeom.Xformable,
 
     return spin_op
 
+
 def turntable_from_file(stage: Usd.Stage,
-                        turntable_filename: str = R"./assets/turntable/turntable_preset.usd", 
+                        turntable_filename: str = R"./assets/turntable/turntable_preset.usd",
                         export_path: str = R"./temp/render",
                         renderer: str = "GL"):
     """
@@ -132,8 +138,6 @@ def turntable_from_file(stage: Usd.Stage,
     # create scene in memory
     ttable_stage = Usd.Stage.CreateInMemory()
 
-    print(UsdGeom.GetStageUpAxis(ttable_stage))
-    
     turntable_ref = ttable_stage.OverridePrim("/turntable_reference")
     turntable_ref.GetReferences().AddReference(turntable_filename)
 
@@ -145,27 +149,23 @@ def turntable_from_file(stage: Usd.Stage,
         turntable_ref_xformable.AddRotateXOp().Set(-90)
 
     # check if required prims are actually there
-    turntable_parent_prim = ttable_stage\
-                            .GetPrimAtPath("/turntable_reference/parent")
-    
-    turntable_camera = next(playblast.iter_stage_cameras(ttable_stage),None)
+    turntable_parent_prim = ttable_stage.GetPrimAtPath("/turntable_reference/parent")
+    turntable_camera = next(playblast.iter_stage_cameras(ttable_stage), None)
 
-    if not turntable_parent_prim.IsValid() or not turntable_camera:
-        missing = []
-        noparent = not turntable_parent_prim.IsValid()
-        nocamera = not turntable_camera
-
-        if noparent:
-            missing.append("Missing: /turntable/parent")
-        if nocamera:
-            missing.append("Missing: Usd Camera")
-
-        raise RuntimeError("Turntable file doesn't have all"
-                           " nessecary components.\n" + "\n".join(missing))
+    # Validate
+    missing = []
+    if not turntable_parent_prim.IsValid():
+        missing.append("Missing: /turntable/parent")
+    if turntable_camera is None:
+        missing.append("Missing: Usd Camera")
+    if missing:
+        raise RuntimeError(
+            "Turntable file doesn't have all necessary components."
+            "\n" + "\n".join(missing)
+        )
 
     # Create a reference within the parent of the new turntable stage
     # References do need xformables created.
-
     ref_adress ="/turntable_reference/parent/subject_reference"
     subject_ref = ttable_stage.OverridePrim(ref_adress)
     subject_ref.GetReferences().AddReference(subject_filename)
@@ -177,27 +177,23 @@ def turntable_from_file(stage: Usd.Stage,
         subject_ref_xformable.AddRotateXOp().Set(-90)
 
     # get bbox of subject and center stage
-    subject_nofit_bbox = UsdGeom.BBoxCache(0,
-                                           ["default"])\
-                                           .ComputeWorldBound(subject_prim)\
-                                           .GetBox()
+    timecode = 0
+    bbox_cache = UsdGeom.BBoxCache(timecode, ["default"])
+    subject_nofit_bbox = bbox_cache.ComputeWorldBound(subject_prim).GetBox()
     
     subject_nofit_size = subject_nofit_bbox.GetSize()
-    
+
     # Get goal geometry boundingbox if it exists, and fit primitive to it
     
-    bbox_prim = ttable_stage\
-                .GetPrimAtPath("/turntable_reference/bounds")
+    bbox_prim = ttable_stage.GetPrimAtPath("/turntable_reference/bounds")
     
 
     if bbox_prim.IsValid():
-        goal_bbox = UsdGeom.BBoxCache(0,["default","proxy"])\
-                                      .ComputeWorldBound(bbox_prim)\
-                                      .GetBox()
+        goal_bbox = bbox_cache.ComputeWorldBound(bbox_prim).GetBox()
         goal_size = goal_bbox.GetSize()
         min_sizediff = goal_size[0] / subject_nofit_size[0]
-        for index in range(1,3):
-            min_sizediff = min(goal_size[index] / subject_nofit_size[index], 
+        for index in range(1, 3):
+            min_sizediff = min(goal_size[index] / subject_nofit_size[index],
                                min_sizediff)
 
         # SCALE
@@ -205,30 +201,27 @@ def turntable_from_file(stage: Usd.Stage,
                              .Set(Gf.Vec3d(min_sizediff))
     else:
         min_sizediff = 1
-    
+
     subject_prim = ttable_stage.GetPrimAtPath("/turntable_reference/parent")
 
     # get bbox of subject and center stage
-    subject_bbox = UsdGeom.BBoxCache(0,
-                                    ["default"])\
-                                    .ComputeWorldBound(subject_prim).GetBox()
-    
+    subject_bbox = bbox_cache.ComputeWorldBound(subject_prim).GetBox()
     subject_bounds_min = subject_bbox.GetMin()
     subject_centroid = subject_bbox.GetMidpoint()
 
     # center geometry.
     if subject_zup:
         subject_center_translate = Gf.Vec3d(
-                                            -subject_centroid[0] / min_sizediff, 
-                                            subject_centroid[2] / min_sizediff, 
+                                            -subject_centroid[0] / min_sizediff,
+                                            subject_centroid[2] / min_sizediff,
                                             -subject_bounds_min[1] / min_sizediff
-                                            ) 
+                                            )
     else:
         subject_center_translate = Gf.Vec3d(
-                                            -subject_centroid[0] / min_sizediff, 
-                                            -subject_bounds_min[1] / min_sizediff, 
+                                            -subject_centroid[0] / min_sizediff,
+                                            -subject_bounds_min[1] / min_sizediff,
                                             -subject_centroid[2] / min_sizediff
-                                            ) 
+                                            )
     
     subject_ref_xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble,"center_centroid")\
                          .Set(subject_center_translate)
@@ -239,14 +232,11 @@ def turntable_from_file(stage: Usd.Stage,
         lights_prim = ttable_stage.GetPrimAtPath("/turntable_reference/scene/lights")
         lights_prim.GetAttribute("visibility").Set("invisible",0)
 
-    # print(ttable_stage.GetRootLayer().ExportToString())
     ttable_stage.Export(R"./temp/test_turntable_fit.usd")
-
-    
 
     # frame range 1-100 in standard file
     # get_file_timerange_as_string should be preferred, but it doesn't work atm.
-    frames_string = playblast.get_frames_string(1, 100) 
+    frames_string = playblast.get_frames_string(1, 100)
     render_path = os.path.join(export_path, "turntablefile_###.png")
     render_path = os.path.abspath(render_path)
 
@@ -254,16 +244,14 @@ def turntable_from_file(stage: Usd.Stage,
 
     realstage = Usd.Stage.Open(R"./temp/test_turntable_fit.usd")
 
-    
-
     turntable_camera = next(playblast.iter_stage_cameras(realstage),None)
     turntable_camera = UsdGeom.Camera(turntable_camera)
     print(turntable_camera)
 
-    playblast.render_playblast(realstage, 
+    playblast.render_playblast(realstage,
                                render_path,
-                               frames=frames_string, 
-                               width=1920, 
+                               frames=frames_string,
+                               width=1920,
                                camera=turntable_camera,
                                renderer=renderer)
 
@@ -271,11 +259,12 @@ def turntable_from_file(stage: Usd.Stage,
 def file_is_zup(path: str) -> bool:
     stage = Usd.Stage.CreateInMemory(path)
     return framing_camera.get_stage_up(stage) == "Z"
-    
+
+
 def get_file_timerange_as_string(path: str) -> str:
     """
     Attempt to get timerange from a USD file.
-    
+
     DOES NOT APPEAR TO WORK, EVEN WITH CORRECT METADATA.
     """
     stage = Usd.Stage.CreateInMemory(path)
@@ -290,8 +279,9 @@ def get_file_timerange_as_string(path: str) -> str:
 
     return playblast.get_frames_string(start,end)
 
+
 def layer_from_layereditor(layer_editor:
-                           LayerTreeWidget) -> Union[Sdf.Layer,None]:
+                           LayerTreeWidget) -> Union[Sdf.Layer, None]:
     """
     Get current selected layer in layer view, 
     if none selected, return top of the stack.

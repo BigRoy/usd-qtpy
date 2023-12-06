@@ -103,35 +103,39 @@ class EditorWindow(QtWidgets.QWidget):
         panels_menu.aboutToShow.connect(update_panel_checkstate)
 
         # Render menu
-
         render_menu = menubar.addMenu("Render")
-        render_labels = "Playblast", "Snapshot", "Snapshot Framing Camera",\
-                        "Render Turntable", "Import Turntable"
-        render_actions = {label : render_menu.addAction(label) for label in render_labels}
-
-        # Testing 
-        print("\n".join(render_util.iter_renderplugin_names()))
+        render_labels = (
+            "Playblast", "Snapshot", "Snapshot Framing Camera",
+            "Render Turntable", "Import Turntable"
+        )
+        render_actions = {label: render_menu.addAction(label) for label in render_labels}
         
         # brings up dialog to snap the current camera view.
         render_snap = partial(render_util.dialog._savepicture_dialog, self._stage, self._stageview)
 
         def snap_framingcam(stage):
-            from pxr import Sdf
-            framecam = render_util.create_framing_camera_in_stage(stage, Sdf.Path("/"), fit=1.1)
+            """Render still frame from a 'framed camera'"""
+            filepath = render_util.prompt_output_path("Save frame with framing camera")
+            if not filepath:
+                return
+            camera = render_util.create_framing_camera_in_stage(stage, fit=1.1)
             render_util.render_playblast(stage, 
-                                         R"C:\dump\framingview##.##.png", 
+                                         filepath,
                                          "1", 
                                          1920, 
                                          renderer="GL", 
-                                         camera=framecam)
+                                         camera=camera)
 
-        add_framecam = partial(snap_framingcam, self._stage)
+        render_snap_with_framingcam = partial(snap_framingcam, self._stage)
 
         def render_turntable(stage):
-            from pxr import Sdf
-            framecam = render_util.create_turntable_camera(stage, Sdf.Path("/"))
+            """Render turntable 'framed camera' rotating around stage center"""
+            filepath = render_util.prompt_output_path("Render turntable")
+            if not filepath:
+                return
+            framecam = render_util.create_turntable_camera(stage)
             render_util.render_playblast(stage, 
-                                         R"C:\dump\turntable_3\centered_turningtableview_##.png", 
+                                         filepath,
                                          "0:99", 
                                          1920, 
                                          renderer="GL", 
@@ -142,12 +146,9 @@ class EditorWindow(QtWidgets.QWidget):
         import_ttable = partial(render_util.turntable.turntable_from_file, self._stage)
 
         render_actions["Snapshot"].triggered.connect(render_snap)
-        render_actions["Snapshot Framing Camera"].triggered.connect(add_framecam)
+        render_actions["Snapshot Framing Camera"].triggered.connect(render_snap_with_framingcam)
         render_actions["Render Turntable"].triggered.connect(render_ttable)
         render_actions["Import Turntable"].triggered.connect(import_ttable)
-        # make sure folders are extant, folders need to exist before rendering to them.
-        # import os
-        # os.makedirs(R"C:\dump\turntable") 
 
         layout = self.layout()
         layout.setMenuBar(menubar)
