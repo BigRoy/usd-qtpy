@@ -2,6 +2,7 @@
 # oh how the turns have tabled
 from typing import Union
 import os
+import math
 
 from pxr import Usd, UsdGeom
 from pxr import Sdf, Gf
@@ -102,35 +103,34 @@ def turn_tableize_prim(stage: Usd.Stage, path: Union[Sdf.Path,str],
         spinop.Set(time=frame_range[0], value = 0)
         spinop.Set(time=frame_range[1], value = ((length - 1) / float(length)) * 360)
 
+def turntable_from_file(stage: Usd.Stage,
+                        turntable_filename: str, 
+                        export_path: str):
+    """
+    #### STILL UNDER CONSTRUCTION
+
+    Generates a turntable from a preset USD file, not unlike Prism.
     
-# def _xform_parent_test(stage: Usd.Stage, name: str = "containerXform"):
-#     """Works, Ready to be deprecated"""
-# 
-#     from_path = Sdf.Path("/Kitchen_set") # hardcoded for now
-#     to_path = Sdf.Path(f"/{name}")
-# 
-#     child_prim = stage.GetPrimAtPath(from_path)
-# 
-#     usd.parent_prims([child_prim],to_path)
-
-
-def turntable_from_file(stage: Usd.Stage):
+    The turntable must have the following structure:
+    - /turntable <- default primitive Xform
+    - /turntable/parent <- Xform that rotates
+    - a camera somewhere under /turntable/
+    
+    Optional:
+    - /turntable/bounds/bound_box <- a geometry primitive 
+                                     that scales input to fit itself.
     """
-    WARNING, THIS FUNCTION IS UNDER CONSTRUCTION
-    """
-    # NEW PLAN: Use references
-    # Save stage somewhere in a temporary folder,
-    # create a new stage, add turntable preset 
+
+    # TODO: Infer frame range from turntable stage.
 
     # collect info about subject
-    subject_bbox = framing_camera.get_stage_boundingbox(stage)
     subject_zup = framing_camera._stage_up(stage) == "Z"
     
     # export subject
     turntable_filename = R"X:\VAULT_PROJECTS\COLORBLEED\Kitchen_set\Turntable_2.usda"
     subject_filename = R"./temp/subject.usda"
     
-    # make temporary folder to write current subject session to.
+    # make temporary folder to cache current subject session to.
     if not os.path.isdir("./temp"):
         os.mkdir("./temp")
 
@@ -152,7 +152,9 @@ def turntable_from_file(stage: Usd.Stage):
         turntable_ref_xformable.AddRotateXOp().Set(-90)
 
     # check if required prims are actually there
-    turntable_parent_prim = ttable_stage.GetPrimAtPath("/turntable/parent")
+    turntable_parent_prim = ttable_stage\
+                            .GetPrimAtPath("/turntable_reference/parent")
+    
     turntable_camera = next(playblast.iter_stage_cameras(ttable_stage),None)
 
     if not turntable_parent_prim.IsValid() or not turntable_camera:
@@ -165,37 +167,89 @@ def turntable_from_file(stage: Usd.Stage):
         if nocamera:
             missing.append("Missing: Usd Camera")
 
-        raise RuntimeError("Turntable file doesn't have all nessecary components.\n" + "\n".join(missing))
+        raise RuntimeError("Turntable file doesn't have all"
+                           " nessecary components.\n" + "\n".join(missing))
 
     # Create a reference within the parent of the new turntable stage
-    subject_ref = ttable_stage.OverridePrim("/turntable_reference/parent/subject_reference")
+    ref_adress ="/turntable_reference/parent/subject_reference"
+    subject_ref = ttable_stage.OverridePrim(ref_adress)
     subject_ref.GetReferences().AddReference(subject_filename)
+    subject_prim = subject_ref.GetPrim()
 
-    print(ttable_stage.GetRootLayer().ExportToString())
+    subject_ref_xformable = UsdGeom.Xformable(subject_ref)
+
+    if subject_zup:
+        subject_ref_xformable.AddRotateXOp().Set(-90)
+
+    # get bbox of subject and center stage
+    subject_nofit_bbox = UsdGeom.BBoxCache(Usd.TimeCode.EarliestTime(), 
+                                           ["default"])\
+                                           .ComputeWorldBound(subject_prim)\
+                                           .GetBox()
+    
+    subject_nofit_size = subject_nofit_bbox.GetSize()
 
     # Get goal geometry boundingbox if it exists, and fit primitive to it
     
-    bbox_prim = ttable_stage.GetPrimAtPath("/turntable_reference/bounds/bound_box")
+    bbox_prim = ttable_stage\
+                .GetPrimAtPath("/turntable_reference/bounds/bound_box")
+    
     if bbox_prim.IsValid():
-        goal_bbox = UsdGeom.BBoxCache(Usd.TimeCode.EarliestTime(),["default"]).ComputeWorldBound(bbox_prim).GetBox()
+        goal_bbox = UsdGeom.BBoxCache(Usd.TimeCode.EarliestTime(), ["default"])\
+                                      .ComputeWorldBound(bbox_prim)\
+                                      .GetBox()
+        goal_size = goal_bbox.GetSize()
+        max_sizediff = 0
+        for index in range(3):
+            max_sizediff = max(math.fabs(\
+                               goal_size[index] / subject_nofit_size[index]), 
+                               max_sizediff)
 
-    ttable_stage.Export(R"X:\VAULT_PROJECTS\COLORBLEED\test_turntable.usd")
+        # SCALE FIRST!
+        subject_ref_xformable.AddScaleOp(UsdGeom.XformOp.PrecisionDouble)\
+                             .Set(Gf.Vec3d(max_sizediff))
+
+    # get bbox of subject and center stage
+    subject_bbox = UsdGeom.BBoxCache(Usd.TimeCode.EarliestTime(),
+                                    ["default"])\
+                                    .ComputeWorldBound(subject_prim).GetBox()
+    
+    subject_bounds_min = subject_bbox.GetMin()
+    subject_centroid = subject_bbox.GetMidpoint()
+
+    # center geometry.
+    if subject_zup:
+        subject_center_translate = Gf.Vec3d(-subject_centroid[2], 
+                                            subject_centroid[0], 
+                                            -subject_bounds_min[1])
+    else:
+        subject_center_translate = Gf.Vec3d(-subject_centroid[0], 
+                                            -subject_bounds_min[1], 
+                                            -subject_centroid[2])
+    
+    subject_ref_xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)\
+                         .Set(subject_center_translate)
+    
+    print(ttable_stage.GetRootLayer().ExportToString())
+    ttable_stage.Export(R"./temp/test_turntable_fit.usd")
 
 
 def file_is_zup(path: str) -> bool:
-    stage = Usd.Stage.CreateNew(path)
+    stage = Usd.Stage.CreateInMemory(path)
     return framing_camera._stage_up(stage) == "Z"
     
 
-def layer_from_layereditor(layer_editor: LayerTreeWidget) -> Union[Sdf.Layer,None]:
+def layer_from_layereditor(layer_editor:
+                           LayerTreeWidget) -> Union[Sdf.Layer,None]:
     """
-    Get current selected layer in layer view, if none selected, return top of the stack.
+    Get current selected layer in layer view, 
+    if none selected, return top of the stack.
     """
     
     if index := layer_editor.view.selectedIndexes():
         layertree_index = index[0]
     else:
-        layertree_index = layer_editor.view.indexAt(QtCore.QPoint(0,0))
+        layertree_index = layer_editor.view.indexAt(QtCore.QPoint(0, 0))
     
     layer: Sdf.Layer = layertree_index.data(LayerStackModel.LayerRole)
 
