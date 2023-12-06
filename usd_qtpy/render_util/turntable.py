@@ -41,7 +41,7 @@ def create_turntable_xform(stage: Usd.Stage,
     else:
         translate = Gf.Vec3d(centroid[0], 0, centroid[2]) # Y axis = floor normal
 
-    # Move, rotate, move back
+    # Move to centroid of bounds, rotate, move back to origin
     xform.AddTranslateOp(XformOp.PrecisionDouble,"rotPivot").Set(translate)
     add_turntable_spin_op(xform, length, frame_start, repeats, is_z_up)
     xform.AddTranslateOp(XformOp.PrecisionDouble,"rotPivot",isInverseOp=True)
