@@ -128,7 +128,7 @@ class EditorWindow(QtWidgets.QWidget):
 
         render_ttable = partial(render_turntable, self._stage)
 
-        import_ttable = partial(render_util.turntable.turntable_from_file,self._stage,self._panels["Layer Editor"])
+        import_ttable = partial(render_util.turntable.turntable_from_file,self._stage)
 
         render_actions["Snapshot"].triggered.connect(render_snap)
         render_actions["Snapshot Framing Camera"].triggered.connect(add_framecam)

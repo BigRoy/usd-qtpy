@@ -1,12 +1,13 @@
 # Turn table utilities.
 # oh how the turns have tabled
 from typing import Union
+import os
 
 from pxr import Usd, UsdGeom
 from pxr import Sdf, Gf
 from qtpy import QtCore
 
-from . import framing_camera
+from . import framing_camera, playblast
 from ..lib import usd
 from ..layer_editor import LayerTreeWidget, LayerStackModel
 
@@ -102,23 +103,94 @@ def turn_tableize_prim(stage: Usd.Stage, path: Union[Sdf.Path,str],
         spinop.Set(time=frame_range[1], value = ((length - 1) / float(length)) * 360)
 
     
-def _xform_parent_test(stage: Usd.Stage, name: str = "containerXform"):
-    """Works"""
+# def _xform_parent_test(stage: Usd.Stage, name: str = "containerXform"):
+#     """Works, Ready to be deprecated"""
+# 
+#     from_path = Sdf.Path("/Kitchen_set") # hardcoded for now
+#     to_path = Sdf.Path(f"/{name}")
+# 
+#     child_prim = stage.GetPrimAtPath(from_path)
+# 
+#     usd.parent_prims([child_prim],to_path)
 
-    from_path = Sdf.Path("/Kitchen_set") # hardcoded for now
-    to_path = Sdf.Path(f"/{name}")
 
-    child_prim = stage.GetPrimAtPath(from_path)
-
-    usd.parent_prims([child_prim],to_path)
-
-
-def turntable_from_file(stage: Usd.Stage, layer_editor: LayerTreeWidget):
+def turntable_from_file(stage: Usd.Stage):
     """
     WARNING, THIS FUNCTION IS UNDER CONSTRUCTION
     """
+    # NEW PLAN: Use references
+    # Save stage somewhere in a temporary folder,
+    # create a new stage, add turntable preset 
+
+    # collect info about subject
+    subject_bbox = framing_camera.get_stage_boundingbox(stage)
+    subject_zup = framing_camera._stage_up(stage) == "Z"
     
-    # WARNING: HARDCODED for now
+    # export subject
+    turntable_filename = R"X:\VAULT_PROJECTS\COLORBLEED\Kitchen_set\Turntable_2.usda"
+    subject_filename = R"./temp/subject.usda"
+    
+    # make temporary folder to write current subject session to.
+    if not os.path.isdir("./temp"):
+        os.mkdir("./temp")
+
+    stage.Export(subject_filename)
+
+    # create scene in memory
+    ttable_stage = Usd.Stage.CreateInMemory()
+
+    print(UsdGeom.GetStageUpAxis(ttable_stage))
+
+    turntable_ref = ttable_stage.OverridePrim("/turntable_reference")
+    turntable_ref.GetReferences().AddReference(turntable_filename)
+
+    # conform turntable to Y up
+    turntable_zup = file_is_zup(turntable_filename)
+
+    if turntable_zup:
+        turntable_ref_xformable = UsdGeom.Xformable(turntable_ref)
+        turntable_ref_xformable.AddRotateXOp().Set(-90)
+
+    # check if required prims are actually there
+    turntable_parent_prim = ttable_stage.GetPrimAtPath("/turntable/parent")
+    turntable_camera = next(playblast.iter_stage_cameras(ttable_stage),None)
+
+    if not turntable_parent_prim.IsValid() or not turntable_camera:
+        missing = []
+        noparent = not turntable_parent_prim.IsValid()
+        nocamera = not turntable_camera
+
+        if noparent:
+            missing.append("Missing: /turntable/parent")
+        if nocamera:
+            missing.append("Missing: Usd Camera")
+
+        raise RuntimeError("Turntable file doesn't have all nessecary components.\n" + "\n".join(missing))
+
+    # Create a reference within the parent of the new turntable stage
+    subject_ref = ttable_stage.OverridePrim("/turntable_reference/parent/subject_reference")
+    subject_ref.GetReferences().AddReference(subject_filename)
+
+    print(ttable_stage.GetRootLayer().ExportToString())
+
+    # Get goal geometry boundingbox if it exists, and fit primitive to it
+    
+    bbox_prim = ttable_stage.GetPrimAtPath("/turntable_reference/bounds/bound_box")
+    if bbox_prim.IsValid():
+        goal_bbox = UsdGeom.BBoxCache(Usd.TimeCode.EarliestTime(),["default"]).ComputeWorldBound(bbox_prim).GetBox()
+
+    ttable_stage.Export(R"X:\VAULT_PROJECTS\COLORBLEED\test_turntable.usd")
+
+
+def file_is_zup(path: str) -> bool:
+    stage = Usd.Stage.CreateNew(path)
+    return framing_camera._stage_up(stage) == "Z"
+    
+
+def layer_from_layereditor(layer_editor: LayerTreeWidget) -> Union[Sdf.Layer,None]:
+    """
+    Get current selected layer in layer view, if none selected, return top of the stack.
+    """
     
     if index := layer_editor.view.selectedIndexes():
         layertree_index = index[0]
@@ -129,44 +201,3 @@ def turntable_from_file(stage: Usd.Stage, layer_editor: LayerTreeWidget):
 
     if not layer:
         return
-
-    filename = R"X:\VAULT_PROJECTS\COLORBLEED\Kitchen_set\Turntable.usda"
-    kitchenfile = R"X:\VAULT_PROJECTS\COLORBLEED\Kitchen_set\Kitchen_set.usd"
-    # layer.subLayerPaths.append(filename)
-
-    # this needs to be done the other way around
-    # load turntable stage,
-    # sublayer scene
-    # parent scene to /turntable/parent
-    # DOESNT WORK ^
-
-    # NEW PLAN: Use references
-    # Save stage somewhere in a temporary folder,
-    # create a new stage, add turntable preset 
-
-    #subject_prim = stage.GetPrimAtPath("/Kitchen_set")
-    #print(subject_prim)
-    #goal_path = Sdf.Path("/turntable")
-
-    #parent_prim = stage.GetPrimAtPath(goal_path)
-    #print(parent_prim)
-    
-    ## parenting the sublayered scene to base scene (unsuccesfully)
-    #usd.parent_prims([parent_prim],Sdf.Path("/Kitchen_set"))
-
-    # Create a stage in memory, then add a reference to the turntable first.
-    ttable_stage = Usd.Stage.CreateInMemory()
-
-    turntable_ref = ttable_stage.OverridePrim("/turntable_reference")
-    turntable_ref.GetReferences().AddReference(filename)
-    
-
-    # TODO: check if parent prim and is of type  is actually there
-    # Create a reference within the parent of the 
-    subject_ref = ttable_stage.OverridePrim("/turntable_reference/parent/subject_reference")
-    subject_ref.GetReferences().AddReference(kitchenfile)
-
-    print(ttable_stage.GetRootLayer().ExportToString())
-    
-    
-    ttable_stage.Export(R"X:\VAULT_PROJECTS\COLORBLEED\test_turntable.usd")
