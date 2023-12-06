@@ -24,7 +24,7 @@ def create_framing_camera_in_stage(stage: Usd.Stage,
     Adds a camera that frames the whole stage.
     Can be specified to have a different aspect ratio, this will affect the sensor size internally.
     """
-    if isinstance(root,str):
+    if isinstance(root, str):
         root = Sdf.Path(root)
 
     # create camera
