@@ -36,9 +36,9 @@ def create_turntable_xform(stage: Usd.Stage,
     xform = UsdGeom.Xform.Define(stage, path)
 
     if is_z_up:
-        translate = Gf.Vec3d(centroid[0], centroid[1], 0) # Z axis = floor normal
+        translate = Gf.Vec3d(centroid[0], centroid[1], 0)  # Z axis = floor normal
     else:
-        translate = Gf.Vec3d(centroid[0], 0, centroid[2]) # Y axis = floor normal
+        translate = Gf.Vec3d(centroid[0], 0, centroid[2])  # Y axis = floor normal
 
     # Move to centroid of bounds, rotate, move back to origin
     xform.AddTranslateOp(XformOp.PrecisionDouble, "rotPivot").Set(translate)

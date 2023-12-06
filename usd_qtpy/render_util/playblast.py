@@ -25,8 +25,8 @@ def _setup_opengl_widget(width: int, height: int, samples: int = 4):
 
     # format object contains information about the Qt OpenGL buffer.
     QGLformat = QtOpenGL.QGLFormat()
-    QGLformat.setSampleBuffers(True) # Enable multisample buffer
-    QGLformat.setSamples(samples)    # default samples is 4 / px
+    QGLformat.setSampleBuffers(True)  # Enable multisample buffer
+    QGLformat.setSamples(samples)     # default samples is 4 / px
 
     GLWidget = QtOpenGL.QGLWidget(QGLformat)
     GLWidget.setFixedSize(QtCore.QSize(width, height))
@@ -117,8 +117,8 @@ def get_frames_string(start_time: int,
     """
     # Keep adhering to USD standard as internally defined.
     from pxr.UsdUtils import TimeCodeRange
-    range_token = TimeCodeRange.Tokens.RangeSeparator   # ":"
-    stride_token = TimeCodeRange.Tokens.StrideSeparator # "x"
+    range_token = TimeCodeRange.Tokens.RangeSeparator    # ":"
+    stride_token = TimeCodeRange.Tokens.StrideSeparator  # "x"
     
     collect = f"{start_time}"
 
@@ -240,7 +240,7 @@ def render_playblast(stage: Usd.Stage,
 
     # Set up OpenGL FBO to write to within Widget, actual size doesn't matter
     # Widgets needs to be stored in a variable to avoid garbage collecting
-    ogl_widget = _setup_opengl_widget(width, width) # noqa
+    ogl_widget = _setup_opengl_widget(width, width)  # noqa
 
     # Create FrameRecorder
     frame_recorder = UsdAppUtils.FrameRecorder()
@@ -248,7 +248,7 @@ def render_playblast(stage: Usd.Stage,
     frame_recorder.SetImageWidth(width)  # Only width is needed, height will be computed from camera properties.
     frame_recorder.SetComplexity(complex_level)
     frame_recorder.SetColorCorrectionMode(colormode)
-    # frameRecorder.SetIncludedPurposes(["default", "render", "proxy", "guide"]) # set to all purposes for now.
+    # frameRecorder.SetIncludedPurposes(["default", "render", "proxy", "guide"])  # set to all purposes for now.
 
     # Use Usds own frame specification parser
     # The following are examples of valid FrameSpecs:
