@@ -87,7 +87,7 @@ def add_turntable_spin_op(xformable: UsdGeom.Xformable,
     spin_op.Set(time=frame_start, value=0)
 
     # Avoid having the last frame the same as the first frame so the cycle
-    # works out nicely over the full lenght. As such, we remove one step
+    # works out nicely over the full length. As such, we remove one step
     frame_end = frame_start + (length * repeats) - 1
     step_per_frame = 360 / length
     spin_op.Set(time=frame_end, value=(repeats * 360) - step_per_frame)
