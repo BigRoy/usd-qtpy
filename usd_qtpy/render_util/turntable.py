@@ -2,7 +2,6 @@
 
 from typing import Union
 import os
-import math
 
 from pxr import Usd, UsdGeom
 from pxr import Sdf, Gf
@@ -93,8 +92,9 @@ def add_turntable_spin_op(xformable: UsdGeom.Xformable,
     return spin_op
 
 def turntable_from_file(stage: Usd.Stage,
-                        turntable_filename: str, 
-                        export_path: str):
+                        turntable_filename: str = R"./assets/turntable/turntable_preset.usd", 
+                        export_path: str = R"./temp/render",
+                        renderer: str = "GL"):
     """
     #### STILL UNDER CONSTRUCTION
 
@@ -116,12 +116,16 @@ def turntable_from_file(stage: Usd.Stage,
     subject_zup = framing_camera.get_stage_up(stage) == "Z"
     
     # export subject
-    turntable_filename = R"X:\VAULT_PROJECTS\COLORBLEED\Kitchen_set\Turntable_2.usda"
+    # turntable_filename = R"./assets/turntable_preset.usd"
     subject_filename = R"./temp/subject.usda"
-    
+
+
     # make temporary folder to cache current subject session to.
     if not os.path.isdir("./temp"):
         os.mkdir("./temp")
+
+    if not os.path.isdir("./temp/render"):
+        os.mkdir("./temp/render")
 
     stage.Export(subject_filename)
 
@@ -129,7 +133,7 @@ def turntable_from_file(stage: Usd.Stage,
     ttable_stage = Usd.Stage.CreateInMemory()
 
     print(UsdGeom.GetStageUpAxis(ttable_stage))
-
+    
     turntable_ref = ttable_stage.OverridePrim("/turntable_reference")
     turntable_ref.GetReferences().AddReference(turntable_filename)
 
@@ -165,7 +169,7 @@ def turntable_from_file(stage: Usd.Stage,
     ref_adress ="/turntable_reference/parent/subject_reference"
     subject_ref = ttable_stage.OverridePrim(ref_adress)
     subject_ref.GetReferences().AddReference(subject_filename)
-    subject_prim = subject_ref.GetPrim()
+    subject_prim = ttable_stage.GetPrimAtPath("/turntable_reference/parent")
 
     subject_ref_xformable = UsdGeom.Xformable(subject_ref)
 
@@ -173,35 +177,39 @@ def turntable_from_file(stage: Usd.Stage,
         subject_ref_xformable.AddRotateXOp().Set(-90)
 
     # get bbox of subject and center stage
-    subject_nofit_bbox = UsdGeom.BBoxCache(Usd.TimeCode.EarliestTime(), 
+    subject_nofit_bbox = UsdGeom.BBoxCache(0,
                                            ["default"])\
                                            .ComputeWorldBound(subject_prim)\
                                            .GetBox()
     
     subject_nofit_size = subject_nofit_bbox.GetSize()
-
+    
     # Get goal geometry boundingbox if it exists, and fit primitive to it
     
     bbox_prim = ttable_stage\
-                .GetPrimAtPath("/turntable_reference/bounds/bound_box")
+                .GetPrimAtPath("/turntable_reference/bounds")
     
+
     if bbox_prim.IsValid():
-        goal_bbox = UsdGeom.BBoxCache(Usd.TimeCode.EarliestTime(), ["default"])\
+        goal_bbox = UsdGeom.BBoxCache(0,["default","proxy"])\
                                       .ComputeWorldBound(bbox_prim)\
                                       .GetBox()
         goal_size = goal_bbox.GetSize()
-        max_sizediff = 0
-        for index in range(3):
-            max_sizediff = max(math.fabs(\
-                               goal_size[index] / subject_nofit_size[index]), 
-                               max_sizediff)
+        min_sizediff = goal_size[0] / subject_nofit_size[0]
+        for index in range(1,3):
+            min_sizediff = min(goal_size[index] / subject_nofit_size[index], 
+                               min_sizediff)
 
-        # SCALE FIRST!
+        # SCALE
         subject_ref_xformable.AddScaleOp(UsdGeom.XformOp.PrecisionDouble)\
-                             .Set(Gf.Vec3d(max_sizediff))
+                             .Set(Gf.Vec3d(min_sizediff))
+    else:
+        min_sizediff = 1
+    
+    subject_prim = ttable_stage.GetPrimAtPath("/turntable_reference/parent")
 
     # get bbox of subject and center stage
-    subject_bbox = UsdGeom.BBoxCache(Usd.TimeCode.EarliestTime(),
+    subject_bbox = UsdGeom.BBoxCache(0,
                                     ["default"])\
                                     .ComputeWorldBound(subject_prim).GetBox()
     
@@ -210,25 +218,77 @@ def turntable_from_file(stage: Usd.Stage,
 
     # center geometry.
     if subject_zup:
-        subject_center_translate = Gf.Vec3d(-subject_centroid[2], 
-                                            subject_centroid[0], 
-                                            -subject_bounds_min[1])
+        subject_center_translate = Gf.Vec3d(
+                                            -subject_centroid[0] / min_sizediff, 
+                                            subject_centroid[2] / min_sizediff, 
+                                            -subject_bounds_min[1] / min_sizediff
+                                            ) 
     else:
-        subject_center_translate = Gf.Vec3d(-subject_centroid[0], 
-                                            -subject_bounds_min[1], 
-                                            -subject_centroid[2])
+        subject_center_translate = Gf.Vec3d(
+                                            -subject_centroid[0] / min_sizediff, 
+                                            -subject_bounds_min[1] / min_sizediff, 
+                                            -subject_centroid[2] / min_sizediff
+                                            ) 
     
-    subject_ref_xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)\
+    subject_ref_xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble,"center_centroid")\
                          .Set(subject_center_translate)
     
-    print(ttable_stage.GetRootLayer().ExportToString())
+    # turn off the lights if GL
+    if renderer == "GL":
+        #ttable_stage.RemovePrim("/turntable_reference/scene/lights")
+        lights_prim = ttable_stage.GetPrimAtPath("/turntable_reference/scene/lights")
+        lights_prim.GetAttribute("visibility").Set("invisible",0)
+
+    # print(ttable_stage.GetRootLayer().ExportToString())
     ttable_stage.Export(R"./temp/test_turntable_fit.usd")
+
+    
+
+    # frame range 1-100 in standard file
+    # get_file_timerange_as_string should be preferred, but it doesn't work atm.
+    frames_string = playblast.get_frames_string(1, 100) 
+    render_path = os.path.join(export_path, "turntablefile_###.png")
+    render_path = os.path.abspath(render_path)
+
+    print("Rendering",frames_string,render_path)
+
+    realstage = Usd.Stage.Open(R"./temp/test_turntable_fit.usd")
+
+    
+
+    turntable_camera = next(playblast.iter_stage_cameras(realstage),None)
+    turntable_camera = UsdGeom.Camera(turntable_camera)
+    print(turntable_camera)
+
+    playblast.render_playblast(realstage, 
+                               render_path,
+                               frames=frames_string, 
+                               width=1920, 
+                               camera=turntable_camera,
+                               renderer=renderer)
 
 
 def file_is_zup(path: str) -> bool:
     stage = Usd.Stage.CreateInMemory(path)
     return framing_camera.get_stage_up(stage) == "Z"
     
+def get_file_timerange_as_string(path: str) -> str:
+    """
+    Attempt to get timerange from a USD file.
+    
+    DOES NOT APPEAR TO WORK, EVEN WITH CORRECT METADATA.
+    """
+    stage = Usd.Stage.CreateInMemory(path)
+
+    if stage.HasAuthoredTimeCodeRange():
+        start = int(stage.GetStartTimeCode())
+        end = int(stage.GetEndTimeCode())
+    else:
+        print("No Timecode found")
+        start = 0
+        end = 100
+
+    return playblast.get_frames_string(start,end)
 
 def layer_from_layereditor(layer_editor:
                            LayerTreeWidget) -> Union[Sdf.Layer,None]:
