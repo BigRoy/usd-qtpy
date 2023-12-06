@@ -45,10 +45,10 @@ def create_framing_camera_in_stage(stage: Usd.Stage,
     # translate THEN rotate. Translation is always done locally.
     # If this needs to be switched around, swizzle translation Vec3d.
     translation = calculate_camera_position(bounds, is_z_up, distance_to_stage)
-    camera_apply_translation(camera, translation)
+    set_first_translation(camera, translation)
 
     if is_z_up:
-        camera_orient_to_z_up(camera)
+        _orient_to_z_up(camera)
     
     return camera
 
@@ -79,33 +79,28 @@ def create_perspective_camera_in_stage(stage: Usd.Stage,
     return camera
 
 
-def camera_orient_to_z_up(camera: UsdGeom.Camera):
+def _orient_to_z_up(xformable: UsdGeom.Xformable):
     """Rotate around X-axis by 90 degrees to orient for Z-up axis."""
-    cam_prim = camera.GetPrim()
-    xform_cam = UsdGeom.Xformable(cam_prim)
-    xform_cam.AddRotateXOp().Set(90)
+    xformable.AddRotateXOp().Set(90)
 
 
-def camera_apply_translation(camera: UsdGeom.Camera, translation: Gf.Vec3d):
+def set_first_translation(xformable: UsdGeom.Xformable,
+                          translation: Gf.Vec3d) -> UsdGeom.XformOp:
+    """Apply translation to first found translation operation in given Camera.
+
+    If no translation op is found then one will be added.
     """
-    Apply translation to first found translation operation in given Camera.
-    """
-    # TODO: Make this generic
-    
-    cam_prim = camera.GetPrim()
-    xform_cam = UsdGeom.Xformable(cam_prim)
-    
-    translate_op = None
     # check for existing translation operation, if not found, add one to stack.
-    for op in xform_cam.GetOrderedXformOps():
+    for op in xformable.GetOrderedXformOps():
         op: UsdGeom.XformOp
         if op.GetOpType() == UsdGeom.XformOp.TypeTranslate:
             translate_op = op
             break
     else:
-        translate_op = xform_cam.AddTranslateOp()
+        translate_op = xformable.AddTranslateOp()
 
     translate_op.Set(translation)
+    return translate_op
 
 
 def set_camera_fitting_clipping_planes(
