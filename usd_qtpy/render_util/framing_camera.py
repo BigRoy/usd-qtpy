@@ -5,8 +5,7 @@
 import math
 from typing import Union
 
-from pxr import Usd, UsdGeom
-from pxr import Sdf, Gf
+from pxr import Usd, UsdGeom, Sdf, Gf
 
 
 def get_stage_up(stage: Usd.Stage) -> str:
@@ -15,7 +14,7 @@ def get_stage_up(stage: Usd.Stage) -> str:
 
 
 def create_framing_camera_in_stage(stage: Usd.Stage, 
-                                   root: Union[Sdf.Path,str], 
+                                   root: Union[Sdf.Path, str] = Sdf.Path("/"),
                                    name: str = "framingCam", 
                                    fit: float = 1,
                                    width: int = 16, 
@@ -32,7 +31,6 @@ def create_framing_camera_in_stage(stage: Usd.Stage,
     camera = create_perspective_camera_in_stage(stage, camera_path, width, height)
 
     # Do prerequisite math so that functions don't have to run these same operations.
-
     bounds = get_stage_boundingbox(stage)
 
     is_z_up = (get_stage_up(stage) == "Z")
@@ -79,9 +77,11 @@ def create_perspective_camera_in_stage(stage: Usd.Stage,
 
     return camera
 
+
 def _orient_to_z_up(xformable: UsdGeom.Xformable):
     """Rotate around X-axis by 90 degrees to orient for Z-up axis."""
     xformable.AddRotateXOp(UsdGeom.XformOp.PrecisionDouble).Set(90)
+
 
 def set_first_translation(xformable: UsdGeom.Xformable,
                           translation: Gf.Vec3d) -> UsdGeom.XformOp:
@@ -100,6 +100,7 @@ def set_first_translation(xformable: UsdGeom.Xformable,
 
     translate_op.Set(translation)
     return translate_op
+
 
 def set_camera_clippingplanes_from_bounds(camera: UsdGeom.Camera,
                                           bounds: Gf.Range3d,
@@ -133,7 +134,7 @@ def get_stage_boundingbox(stage: Usd.Stage,
     if not purpose_tokens:
         purpose_tokens = ["default"]
 
-    bbox_cache = UsdGeom.BBoxCache(time,purpose_tokens)
+    bbox_cache = UsdGeom.BBoxCache(time, purpose_tokens)
     stage_root = stage.GetPseudoRoot()
     return bbox_cache.ComputeWorldBound(stage_root).GetBox()
 
@@ -201,8 +202,8 @@ def calculate_distance_to_fit_bounds(camera: UsdGeom.Camera,
     d_hor = bounds_max[0] - bounds_min[0]
     d_ver = bounds_max[vertical_axis_index] - bounds_min[vertical_axis_index]
 
-    fov_hor = calculate_field_of_view(focal_length,hor_aperture)
-    fov_ver = calculate_field_of_view(focal_length,ver_aperture)
+    fov_hor = calculate_field_of_view(focal_length, hor_aperture)
+    fov_ver = calculate_field_of_view(focal_length, ver_aperture)
     
     # calculate capture size. the sensor size was given in mm (24 mm sensor) 
     # so we need to pass in cm units from the scene as mm units for correct calculation. 
@@ -214,7 +215,6 @@ def calculate_distance_to_fit_bounds(camera: UsdGeom.Camera,
 
 
 def calculate_field_of_view(focal_length, sensor_size) -> float:
-    # Math : https://sdk-forum.dji.net/hc/en-us/articles/11317874071065-How-to-calculate-the-FoV-of-the-camera-lens-
     """
     Calculates field of view for 1 measurement of the sensor size (width or height)
     Returns field of view in radians.
@@ -230,6 +230,10 @@ def calculate_field_of_view(focal_length, sensor_size) -> float:
 
     This expression is rewritten as `2 * atan(h * (2 * f))`, 
     this is mathematically the same.
+
+    More details, see math:
+        https://sdk-forum.dji.net/hc/en-us/articles/11317874071065-How-to-calculate-the-FoV-of-the-camera-lens-
+
     """
 
     return 2 * math.atan(sensor_size / (2 * focal_length))
