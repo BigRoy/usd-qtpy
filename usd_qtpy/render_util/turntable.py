@@ -27,19 +27,19 @@ def create_turntable_xform(stage: Usd.Stage,
     
     path = path.AppendPath(name)
 
-    z_up = (framing_camera.get_stage_up(stage) == "Z")
+    z_up = framing_camera.get_stage_up(stage) == "Z"
     
     bounds = framing_camera.get_stage_boundingbox(stage)
-    centroid = (bounds.GetMin() + bounds.GetMax()) / 2
+    centroid = bounds.GetMidpoint()
 
     xform = UsdGeom.Xform.Define(stage, path)
 
-    # Translate first, then add spin turntable
     if z_up:
         translate = Gf.Vec3d(centroid[0], centroid[1], 0)  # Z axis = floor normal
     else:
         translate = Gf.Vec3d(centroid[0], 0, centroid[2])  # Y axis = floor normal
 
+    # Translate first, then add spin turntable rotation
     xform.AddTranslateOp().Set(translate)
     add_turntable_spin_op(xform, length, frame_start, repeats, z_up)
 
@@ -66,20 +66,19 @@ def create_turntable_camera(stage: Usd.Stage,
     xform_path = xform.GetPath()
 
     cam = framing_camera.create_framing_camera_in_stage(
-        stage, xform_path, name, fit, width, height, True
+        stage, xform_path, name, fit, width, height
     )
 
     return cam
 
 
-def add_turntable_spin_op(prim: Usd.Prim,
+def add_turntable_spin_op(xformable: UsdGeom.Xformable,
                           length: int = 100,
                           frame_start: int = 0,
                           repeats: int = 1,
                           z_up: bool = False) -> UsdGeom.XformOp:
     """Add Rotate XformOp with 360 degrees turntable rotation keys to prim"""
     # TODO: Maybe check for existing operations before blatantly adding one.
-    xformable = UsdGeom.Xformable(prim)
     if z_up:
         spin_op = xformable.AddRotateZOp()
     else:

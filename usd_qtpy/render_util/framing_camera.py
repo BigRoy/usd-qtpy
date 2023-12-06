@@ -33,13 +33,14 @@ def create_framing_camera_in_stage(stage: Usd.Stage,
 
     # Do prerequisite math
     bounds = get_stage_boundingbox(stage)
-
     is_z_up = get_stage_up(stage) == "Z"
 
-    distance_to_stage = calculate_distance_to_fit_bounds(camera, bounds, is_z_up, fit)
+    distance_to_stage = calculate_distance_to_fit_bounds(camera, bounds,
+                                                         is_z_up, fit)
 
     # setup attributes in camera
-    set_camera_clippingplanes_from_stage(camera, bounds, is_z_up, distance_to_stage)
+    set_camera_fitting_clipping_planes(camera, bounds,
+                                       is_z_up, distance_to_stage)
 
     # translate THEN rotate. Translation is always done locally.
     # If this needs to be switched around, swizzle translation Vec3d.
@@ -107,17 +108,16 @@ def camera_apply_translation(camera: UsdGeom.Camera, translation: Gf.Vec3d):
     translate_op.Set(translation)
 
 
-def set_camera_clippingplanes_from_stage(
+def set_camera_fitting_clipping_planes(
         camera: UsdGeom.Camera,
-        bounds_min: Gf.Vec3d = None,
-        bounds_max: Gf.Vec3d = None,
-        z_up: bool = None,
-        distance: float = None
+        bounds: Gf.Range3d = None,
+        z_up: bool = False,
+        distance: float = 1.0
 ):
-    """
-    Set internal camera clipping plane attributes to fit the stage.
-    """
+    """Set camera clipping plane attributes to fit the bounds."""
 
+    bounds_min = bounds.GetMin()
+    bounds_max = bounds.GetMax()
     vertical_axis_index = 2 if z_up else 1
 
     # expand clipping planes out a bit.
@@ -147,44 +147,47 @@ def get_stage_boundingbox(
     return bbox_cache.ComputeWorldBound(stage_root).GetBox()
 
 
-def calculate_camera_position(bounds_min: Gf.Vec3d = None,
-                              bounds_max: Gf.Vec3d = None,
-                              z_up: bool = None,
-                              distance: float = None) -> Gf.Vec3d:
+def calculate_camera_position(bounds: Gf.Range3d,
+                              z_up: bool,
+                              distance: float) -> Gf.Vec3d:
     """
     Calculate the world position for the camera based off of the size of the bounds and the camera attributes.
-    Bounds and distance can be calculated beforehand so 
-    """
+    Bounds and distance can be calculated beforehand so
 
-    # Suppose a scene with a cone,
-    #             ..
-    #          ../  |    /\
-    #  O O    /     |   /  \
-    # [cam]<| ------|  /I am\
-    #         \..   | / cone \
-    #            \..|/ fear me\
-    #               ^       
-    #               |- The focus plane will be here, at the closest depth of the bounds
-    #                  of the scene the camera is pointed at.
-    #
-    # The center of the camera will be positioned at the center of the vertical and horizontal axis, 
-    # (Y and X respectively, assuming y up)
-    # and positioned back along the  with the calculated frustrum-filling distance along the depth axis,
-    # (Z, assuming y up).
-    
-    centroid = (bounds_min + bounds_max) / 2
+    Suppose a scene with a cone,
+                ..
+             ../  |    /\
+     O O    /     |   /  \
+    [cam]<| ------|  /I am\
+            \..   | / cone \
+               \. |/ fear me\
+                  ^
+                  |- The focus plane will be here, at the closest depth of the bounds
+                     of the scene the camera is pointed at.
+
+    The center of the camera will be positioned at the center of the vertical and horizontal axis,
+    (Y and X respectively, assuming y up)
+    and positioned back along the with the calculated frustrum-filling distance along the depth axis,
+    (Z, assuming y up).
+    """
+    bounds_min = bounds.GetMin()
+    bounds_max = bounds.GetMax()
+    centroid = bounds.GetMidpoint()
 
     if z_up:
-        camera_position = Gf.Vec3d(centroid[0], bounds_min[1]-distance, centroid[2]) 
+        camera_position = Gf.Vec3d(centroid[0],
+                                   bounds_min[1]-distance,
+                                   centroid[2])
     else:
-        camera_position = Gf.Vec3d(centroid[0], centroid[1], bounds_max[2] + distance)
+        camera_position = Gf.Vec3d(centroid[0],
+                                   centroid[1],
+                                   bounds_max[2] + distance)
 
     return camera_position
 
 
 def calculate_distance_to_fit_bounds(camera: UsdGeom.Camera,
-                                     bounds_min: Gf.Vec3d = None,
-                                     bounds_max: Gf.Vec3d = None,
+                                     bounds: Gf.Range3d,
                                      z_up: bool = None,
                                      fit: float = 1.0) -> float:
     """
@@ -200,6 +203,8 @@ def calculate_distance_to_fit_bounds(camera: UsdGeom.Camera,
     vertical_axis_index = 2 if z_up else 1
 
     # get size of bounds
+    bounds_max = bounds.GetMax()
+    bounds_min = bounds.GetMin()
     d_hor = bounds_max[0] - bounds_min[0]
     d_ver = bounds_max[vertical_axis_index] - bounds_min[vertical_axis_index]
 
