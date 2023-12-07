@@ -203,6 +203,9 @@ def turntable_from_file(stage: Usd.Stage,
         min_sizediff = 1
 
     subject_prim = ttable_stage.GetPrimAtPath("/turntable_reference/parent")
+    
+    # clear bboxcache
+    bbox_cache.Clear()
 
     # get bbox of subject and center stage
     subject_bbox = bbox_cache.ComputeWorldBound(subject_prim).GetBox()
@@ -247,7 +250,6 @@ def turntable_from_file(stage: Usd.Stage,
 
     turntable_camera = next(playblast.iter_stage_cameras(realstage),None)
     turntable_camera = UsdGeom.Camera(turntable_camera)
-    print(turntable_camera)
 
     playblast.render_playblast(realstage,
                                render_path,
