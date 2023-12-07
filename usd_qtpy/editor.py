@@ -125,6 +125,7 @@ class EditorWindow(QtWidgets.QWidget):
                                          1920, 
                                          renderer="GL", 
                                          camera=camera)
+            stage.RemovePrim(camera.GetPath())
 
         render_snap_with_framingcam = partial(snap_framingcam, self._stage)
 
@@ -140,6 +141,7 @@ class EditorWindow(QtWidgets.QWidget):
                                          1920, 
                                          renderer="GL", 
                                          camera=framecam)
+            stage.RemovePrim(framecam.GetPath())
 
         render_ttable = partial(render_turntable, self._stage)
 
