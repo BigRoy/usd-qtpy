@@ -42,7 +42,7 @@ Temporary Items
 
 # TEMP
 ######
-.temp/
+temp/
 
 # VScode files
 .vscode/
