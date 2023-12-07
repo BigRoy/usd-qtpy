@@ -124,6 +124,7 @@ def turntable_from_file(stage: Usd.Stage,
     # export subject
     # turntable_filename = R"./assets/turntable_preset.usd"
     subject_filename = R"./temp/subject.usda"
+    subject_filename = os.path.abspath(subject_filename)
 
 
     # make temporary folder to cache current subject session to.
@@ -236,7 +237,10 @@ def turntable_from_file(stage: Usd.Stage,
         lights_prim = ttable_stage.GetPrimAtPath("/turntable_reference/scene/lights")
         lights_prim.GetAttribute("visibility").Set("invisible",0)
 
-    ttable_stage.Export(R"./temp/test_turntable_fit.usd")
+    realstage_filename = R"./temp/test_turntable_fit.usd"
+    realstage_filename = os.path.abspath(realstage_filename)
+
+    ttable_stage.Export(realstage_filename)
 
     # frame range 1-100 in standard file
     # get_file_timerange_as_string should be preferred, but it doesn't work atm.
@@ -246,7 +250,7 @@ def turntable_from_file(stage: Usd.Stage,
 
     print("Rendering",frames_string,render_path)
 
-    realstage = Usd.Stage.Open(R"./temp/test_turntable_fit.usd")
+    realstage = Usd.Stage.Open(realstage_filename)
 
     turntable_camera = next(playblast.iter_stage_cameras(realstage),None)
     turntable_camera = UsdGeom.Camera(turntable_camera)
@@ -257,6 +261,12 @@ def turntable_from_file(stage: Usd.Stage,
                                width=1920,
                                camera=turntable_camera,
                                renderer=renderer)
+    
+    # explicitly free scene to make composite file available for deletion
+    del realstage
+
+    os.remove(subject_filename)
+    os.remove(realstage_filename)
 
 
 def file_is_zup(path: str) -> bool:
