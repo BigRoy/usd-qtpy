@@ -40,6 +40,10 @@ Temporary Items
 ######
 .idea/
 
+# TEMP
+######
+.temp/
+
 # VScode files
 .vscode/
 .env
