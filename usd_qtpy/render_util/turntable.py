@@ -212,18 +212,19 @@ def turntable_from_file(stage: Usd.Stage,
     # center geometry.
     if subject_zup:
         subject_center_translate = Gf.Vec3d(
-                                            -subject_centroid[0],
-                                            subject_centroid[2],
-                                            -subject_bounds_min[1]
-                                            ) / min_sizediff
+                                            -subject_centroid[0] / min_sizediff,
+                                            subject_centroid[2] / min_sizediff,
+                                            -subject_bounds_min[1] / min_sizediff
+                                            )
     else:
         subject_center_translate = Gf.Vec3d(
-                                            -subject_centroid[0] ,
-                                            -subject_bounds_min[1],
-                                            -subject_centroid[2]
-                                            ) / min_sizediff
+                                            -subject_centroid[0] / min_sizediff,
+                                            -subject_bounds_min[1] / min_sizediff,
+                                            -subject_centroid[2] / min_sizediff
+                                            ) 
     
-    subject_ref_xformable.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble,"center_centroid")\
+    subject_ref_xformable.AddTranslateOp(
+                          UsdGeom.XformOp.PrecisionDouble,"center_centroid")\
                          .Set(subject_center_translate)
     
     # turn off the lights if GL

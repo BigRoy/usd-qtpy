@@ -75,10 +75,11 @@ def _savepicture_dialog(stage: Usd.Stage,
     if frame_timecode == Usd.TimeCode.EarliestTime():
         frame_timecode = None
 
-    frames = "0" if frame_timecode is None else frame_timecode.GetValue()
+    frame = 0 if frame_timecode is None else frame_timecode.GetValue()
+
     playblast.render_playblast(stage,
                                filename,
-                               frames=frames,
+                               frames=f"{frame}",
                                width=1920,
                                camera=camera)
 
