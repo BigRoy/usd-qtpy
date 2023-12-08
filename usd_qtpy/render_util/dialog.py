@@ -118,6 +118,9 @@ class PlayblastDialog(QtWidgets.QDialog):
         self.formlayout = QtWidgets.QFormLayout()
         self.formlayout.setHorizontalSpacing(50)
 
+        # UI pre hook
+        self.ui_pre_hook(self.vlayout)
+
         # File name browser
         lbl_filedest = QtWidgets.QLabel(self)
         lbl_filedest.setText("Path to save render to...")
@@ -238,6 +241,9 @@ class PlayblastDialog(QtWidgets.QDialog):
         
         self.vlayout.addLayout(self.formlayout)
 
+        # Ui post hook
+        self.ui_post_hook(self.vlayout)
+
         # Playblast button
 
         self.btn_playblast = QtWidgets.QPushButton()
@@ -268,3 +274,26 @@ class PlayblastDialog(QtWidgets.QDialog):
         filename = prompt_output_path("Render result to...")
         if filename:
             self.txt_filename.setText(os.path.normpath(filename))
+
+    def ui_pre_hook(self, vlayout: QtWidgets.QVBoxLayout):
+        """
+        Override hook to insert QtWidgets BEFORE the main playblast interface.
+        """
+        pass
+        # Example: add some text
+        # txt = QtWidgets.QLabel()
+        # txt.setText("I go before the interface!")
+        # txt.setFixedHeight(30)
+        # vlayout.addWidget(txt)
+
+    def ui_post_hook(self, vlayout: QtWidgets.QVBoxLayout):
+        """
+        Override hook to insert QtWidgets after the main playblast interface,
+        but before the playblast button.
+        """
+        pass
+        # Example: add some text
+        # txt = QtWidgets.QLabel()
+        # txt.setText("I go after the interface!")
+        # txt.setFixedHeight(30)git 
+        # vlayout.addWidget(txt)
