@@ -233,6 +233,30 @@ class PlayblastDialog(QtWidgets.QDialog):
         separator_2.setFrameShape(QtWidgets.QFrame.HLine)
         self.formlayout.addWidget(separator_2)
 
+        # Purposes
+        self.chk_purpose_default = QtWidgets.QCheckBox()
+        self.chk_purpose_render = QtWidgets.QCheckBox()
+        self.chk_purpose_proxy = QtWidgets.QCheckBox()
+        self.chk_purpose_guide = QtWidgets.QCheckBox()
+
+        self.chk_purpose_default.setText("Default")
+        self.chk_purpose_render.setText("Render")
+        self.chk_purpose_proxy.setText("Proxy")
+        self.chk_purpose_guide.setText("Guide")
+
+        self.chk_purpose_default.setChecked(True)
+        self.chk_purpose_render.setChecked(True)
+        self.chk_purpose_proxy.setChecked(True)
+        self.chk_purpose_guide.setChecked(False)
+
+        purpose_vlayout = QtWidgets.QVBoxLayout()
+        purpose_vlayout.addWidget(self.chk_purpose_default)
+        purpose_vlayout.addWidget(self.chk_purpose_render)
+        purpose_vlayout.addWidget(self.chk_purpose_proxy)
+        purpose_vlayout.addWidget(self.chk_purpose_guide)
+
+        self.formlayout.addRow("Included purposes:",purpose_vlayout)
+
         # Renderer Combobox
         self.cbox_renderer = QtWidgets.QComboBox()
         self.cbox_renderer.addItems(playblast.iter_renderplugin_names())
@@ -274,6 +298,23 @@ class PlayblastDialog(QtWidgets.QDialog):
         filename = prompt_output_path("Render result to...")
         if filename:
             self.txt_filename.setText(os.path.normpath(filename))
+
+    def _gather_purposes(self) -> list[str]:
+        purposes = []
+        
+        if self.chk_purpose_default:
+            purposes.append("default")
+        
+        if self.chk_purpose_render:
+            purposes.append("render")
+
+        if self.chk_purpose_proxy:
+            purposes.append("proxy")
+
+        if self.chk_purpose_guide:
+            purposes.append("guide")
+        
+        return purposes
 
     def ui_pre_hook(self, vlayout: QtWidgets.QVBoxLayout):
         """

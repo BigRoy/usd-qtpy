@@ -158,7 +158,8 @@ def render_playblast(stage: Usd.Stage,
                      camera: UsdGeom.Camera = None, 
                      complexity: Union[str, int] = "High",
                      renderer: str = None,
-                     colormode: str = "sRGB") -> list[str]:
+                     colormode: str = "sRGB",
+                     purposes: list[str] = None) -> list[str]:
     """
     Render one or multiple frames from a usd stage's camera.
 
@@ -242,13 +243,16 @@ def render_playblast(stage: Usd.Stage,
     # Widgets needs to be stored in a variable to avoid garbage collecting
     ogl_widget = _setup_opengl_widget(width, width) # noqa
 
+    if purposes is None:
+        purposes = ["default","render","proxy"]
+
     # Create FrameRecorder
     frame_recorder = UsdAppUtils.FrameRecorder()
     frame_recorder.SetRendererPlugin(renderer_plugin)
     frame_recorder.SetImageWidth(width)  # Only width is needed, height will be computed from camera properties.
     frame_recorder.SetComplexity(complex_level)
     frame_recorder.SetColorCorrectionMode(colormode)
-    # frameRecorder.SetIncludedPurposes(["default", "render", "proxy", "guide"]) # set to all purposes for now.
+    frame_recorder.SetIncludedPurposes(purposes) # set to all purposes for now.
 
     # Use Usds own frame specification parser
     # The following are examples of valid FrameSpecs:
