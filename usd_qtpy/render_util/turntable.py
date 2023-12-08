@@ -187,7 +187,6 @@ def turntable_from_file(stage: Usd.Stage,
     # Get goal geometry boundingbox if it exists, and fit primitive to it
     
     bbox_prim = ttable_stage.GetPrimAtPath("/turntable_reference/bounds")
-    
 
     if bbox_prim.IsValid():
         goal_bbox = bbox_cache.ComputeWorldBound(bbox_prim).GetBox()
@@ -233,9 +232,9 @@ def turntable_from_file(stage: Usd.Stage,
     
     # turn off the lights if GL
     if renderer == "GL":
-        #ttable_stage.RemovePrim("/turntable_reference/scene/lights")
         lights_prim = ttable_stage.GetPrimAtPath("/turntable_reference/scene/lights")
-        lights_prim.GetAttribute("visibility").Set("invisible",0)
+        if lights_prim.IsValid():
+            lights_prim.GetAttribute("visibility").Set("invisible",0)
 
     realstage_filename = R"./temp/test_turntable_fit.usd"
     realstage_filename = os.path.abspath(realstage_filename)

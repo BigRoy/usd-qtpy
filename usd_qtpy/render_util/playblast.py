@@ -214,7 +214,7 @@ def render_playblast(stage: Usd.Stage,
 
     complex_level: float = complex_level.value
 
-    # deduce default renderer based on platform if not specified.
+    # deduce default renderer based on platform, if render argument is not specified.
     if renderer is None:
         if sys.platform == "nt" or sys.platform == "win32":
             renderer = "GL"
