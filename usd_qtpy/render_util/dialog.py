@@ -91,11 +91,31 @@ class PlayblastDialog(QtWidgets.QDialog):
     def __init__(self, parent: QtCore.QObject) -> Any:
         super(PlayblastDialog,self).__init__(parent=parent)
         self.setWindowTitle("USD Playblast")
-        self._layout = QtWidgets.QVBoxLayout(self)
         
-        self._layout.setContentsMargins(10,10,10,10)
+        #self._layout.setContentsMargins(10,10,10,10)
 
-        self._container = QtWidgets.QGroupBox()
+        width, height = 600, 800
+        geometry = QtCore.QRect(0, 0, width, height)
+
+        self.resize(QtCore.QSize(width,height))
+
+        self.vlayout = QtWidgets.QVBoxLayout()
+        self.vlayout.addSpacing(30)
+
+        self._container = QtWidgets.QGroupBox(self)
         self._container.setTitle("Playblast settings")
+        self._container.setGeometry(geometry)
+        self._container.setLayout(self.vlayout)
 
-        self._layout.addChildWidget(self._container)
+        btn_playblast = QtWidgets.QPushButton()
+        btn_playblast.setText("Playblast!")
+
+        self.hlayout = QtWidgets.QFormLayout()
+        self.hlayout.setHorizontalSpacing(200)
+
+        test_combobox = QtWidgets.QComboBox()
+        self.hlayout.addRow("Test",test_combobox)
+        
+        self.vlayout.addLayout(self.hlayout)
+
+        self.vlayout.addWidget(btn_playblast)
