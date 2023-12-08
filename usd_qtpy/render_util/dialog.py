@@ -6,7 +6,7 @@ from typing import Any
 from functools import partial
 
 from qtpy import QtWidgets, QtCore
-from pxr import Usd
+from pxr import Usd, UsdGeom
 from pxr.Usdviewq.stageView import StageView
 
 from . import playblast
@@ -90,13 +90,16 @@ def _savepicture_dialog(stage: Usd.Stage,
     
 
 class PlayblastDialog(QtWidgets.QDialog):
-    def __init__(self, parent: QtCore.QObject) -> Any:
+    def __init__(self, stage: Usd.Stage, parent: QtCore.QObject) -> Any:
         super(PlayblastDialog,self).__init__(parent=parent)
         self.setWindowTitle("USD Playblast")
 
-        self.setStyleSheet("QToolButton::menu-indicator {"
-                           "width: 0px;"
-                           "}")
+        self.setStyleSheet("QToolButton::menu-indicator {              " 
+                                                       "    width: 0px;"
+                                                       "}              ")
+
+        self._parent = parent
+        self._has_viewer = "Scene Viewer" in parent._panels
 
         width, height, margin = 600, 800, 15
         geometry = QtCore.QRect(margin, margin, 
@@ -115,8 +118,36 @@ class PlayblastDialog(QtWidgets.QDialog):
         self.btn_playblast = QtWidgets.QPushButton()
         self.btn_playblast.setText("Playblast!")
 
-        self.hlayout = QtWidgets.QFormLayout()
-        self.hlayout.setHorizontalSpacing(200)
+        self.formlayout = QtWidgets.QFormLayout()
+        self.formlayout.setHorizontalSpacing(50)
+
+        # Frame range
+        self.cbox_framerange_options = QtWidgets.QComboBox()
+        self.cbox_framerange_options.addItems(("Single frame", "Frame range"))
+
+        if self._has_viewer:
+            self.cbox_framerange_options.addItem("Frame from view")
+        
+        self.cbox_framerange_options.setCurrentIndex(0)
+
+        self.formlayout.addRow("Frame range options",self.cbox_framerange_options)
+
+        self.spinbox_frame_start = QtWidgets.QSpinBox()
+        self.spinbox_frame_end = QtWidgets.QSpinBox()
+        self.spinbox_frame_interval = QtWidgets.QDoubleSpinBox()
+
+        self.spinbox_frame_start.setValue(0)
+        self.spinbox_frame_end.setValue(100)
+        self.spinbox_frame_interval.setValue(1)
+        
+        self.cbox_framerange_options.currentIndexChanged.connect(self._update_framerange_options)
+        self._update_framerange_options()
+
+        framerange_hlayout = QtWidgets.QHBoxLayout()
+        framerange_hlayout.addWidget(self.spinbox_frame_start)
+        framerange_hlayout.addWidget(self.spinbox_frame_end)
+        framerange_hlayout.addWidget(self.spinbox_frame_interval)
+        self.formlayout.addRow("Frame Start / End / Interval", framerange_hlayout)
 
         # Resolution
         self.spinbox_horresolution = QtWidgets.QSpinBox()
@@ -149,23 +180,50 @@ class PlayblastDialog(QtWidgets.QDialog):
 
         self.btn_resolution.setMenu(self.btn_resolution_menu)
 
-        resolution_horlayout = QtWidgets.QHBoxLayout()
-        resolution_horlayout.addWidget(self.spinbox_horresolution)
-        resolution_horlayout.addWidget(self.spinbox_verresolution)
-        resolution_horlayout.addWidget(self.btn_resolution)
-        self.hlayout.addRow("Resolution", resolution_horlayout)
+        resolution_hlayout = QtWidgets.QHBoxLayout()
+        resolution_hlayout.addWidget(self.spinbox_horresolution)
+        resolution_hlayout.addWidget(self.spinbox_verresolution)
+        resolution_hlayout.addWidget(self.btn_resolution)
+        self.formlayout.addRow("Resolution", resolution_hlayout)
 
+        # Camera selection
+        self.cbox_camera = QtWidgets.QComboBox()
+        for cam in playblast.iter_stage_cameras(stage):
+            cam: UsdGeom.Camera
+            cam_name = os.path.basename(cam.GetPath().pathString)
+            self.cbox_camera.addItem(f"Cam: {cam_name}", cam)
+        
+        self.cbox_camera.addItem("Stage-framing camera")
+        if self._has_viewer:
+            self.cbox_camera.addItem("Scene Viewer camera")
+
+        self.cbox_camera.setCurrentIndex(0)
+        self.formlayout.addRow("Camera",self.cbox_camera)
 
         # Renderer Combobox
-        cbox_renderer = QtWidgets.QComboBox()
-        cbox_renderer.addItems(playblast.iter_renderplugin_names())
-        cbox_renderer.setCurrentIndex(0)
-        self.hlayout.addRow("Test",cbox_renderer)
+        self.cbox_renderer = QtWidgets.QComboBox()
+        self.cbox_renderer.addItems(playblast.iter_renderplugin_names())
+        self.cbox_renderer.setCurrentIndex(0)
+        self.formlayout.addRow("Renderer",self.cbox_renderer)
         
-
-        self.vlayout.addLayout(self.hlayout)
+        self.vlayout.addLayout(self.formlayout)
         self.vlayout.addWidget(self.btn_playblast)
 
     def _update_resolution(self, res_tuple: tuple[int,int]):
         self.spinbox_horresolution.setValue(res_tuple[0])
         self.spinbox_verresolution.setValue(res_tuple[1])
+
+    def _update_framerange_options(self):
+        index = self.cbox_framerange_options.currentIndex()
+        if index == 0:
+            self.spinbox_frame_start.setDisabled(False)
+            self.spinbox_frame_end.setDisabled(True)
+            self.spinbox_frame_interval.setDisabled(True)
+        elif index == 1:
+            self.spinbox_frame_start.setDisabled(False)
+            self.spinbox_frame_end.setDisabled(False)
+            self.spinbox_frame_interval.setDisabled(False)
+        elif index == 2:
+            self.spinbox_frame_start.setDisabled(True)
+            self.spinbox_frame_end.setDisabled(True)
+            self.spinbox_frame_interval.setDisabled(True)
