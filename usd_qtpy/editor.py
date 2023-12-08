@@ -106,7 +106,7 @@ class EditorWindow(QtWidgets.QWidget):
         render_menu = menubar.addMenu("Render")
         render_labels = (
             "Playblast", "Snapshot", "Snapshot Framing Camera",
-            "Render Turntable", "Render Preset Turntable"
+            "Render Turntable", "Render Preset Turntable", "Playblast Dialog"
         )
         render_actions = {label: render_menu.addAction(label) for label in render_labels}
         
@@ -147,10 +147,15 @@ class EditorWindow(QtWidgets.QWidget):
 
         import_ttable = partial(render_util.turntable.turntable_from_file, self._stage)
 
+        def show_dialog(this):
+            dialog = render_util.PlayblastDialog(parent=this)
+            dialog.show()
+
         render_actions["Snapshot"].triggered.connect(render_snap)
         render_actions["Snapshot Framing Camera"].triggered.connect(render_snap_with_framingcam)
         render_actions["Render Turntable"].triggered.connect(render_ttable)
         render_actions["Render Preset Turntable"].triggered.connect(import_ttable)
+        render_actions["Playblast Dialog"].triggered.connect(partial(show_dialog,self))
 
         layout = self.layout()
         layout.setMenuBar(menubar)

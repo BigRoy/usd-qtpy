@@ -2,8 +2,9 @@
 
 import os
 import re
+from typing import Any
 
-from qtpy import QtWidgets
+from qtpy import QtWidgets, QtCore
 from pxr import Usd
 from pxr.Usdviewq.stageView import StageView
 
@@ -14,9 +15,9 @@ def _rectify_path_framenumberspec(path: str, padding: int =  4):
     """Ensure a placeholder for framenumbers exists in the path.
 
     >>> _rectify_path_framenumberspec("filename##.png")
-    >>> "filename####.png"
+    "filename####.png"
     >>> _rectify_path_framenumberspec("filename###.png")
-    >>> "filename####.png"
+    "filename####.png"
 
     Returns:
         str: The path with an ensured frame number hash.
@@ -85,3 +86,16 @@ def _savepicture_dialog(stage: Usd.Stage,
 
     stage.RemovePrim(camera.GetPath())
     
+
+class PlayblastDialog(QtWidgets.QDialog):
+    def __init__(self, parent: QtCore.QObject) -> Any:
+        super(PlayblastDialog,self).__init__(parent=parent)
+        self.setWindowTitle("USD Playblast")
+        self._layout = QtWidgets.QVBoxLayout(self)
+        
+        self._layout.setContentsMargins(10,10,10,10)
+
+        self._container = QtWidgets.QGroupBox()
+        self._container.setTitle("Playblast settings")
+
+        self._layout.addChildWidget(self._container)
