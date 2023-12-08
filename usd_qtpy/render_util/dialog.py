@@ -115,11 +115,28 @@ class PlayblastDialog(QtWidgets.QDialog):
         self.vlayout.addSpacing(30) # add some spacing from the top
         self._container.setLayout(self.vlayout)
 
-        self.btn_playblast = QtWidgets.QPushButton()
-        self.btn_playblast.setText("Playblast!")
-
         self.formlayout = QtWidgets.QFormLayout()
         self.formlayout.setHorizontalSpacing(50)
+
+        # File name browser
+        lbl_filedest = QtWidgets.QLabel(self)
+        lbl_filedest.setText("Path to save render to...")
+        lbl_filedest.setFixedHeight(30)
+        self.vlayout.addWidget(lbl_filedest)
+
+        self.txt_filename = QtWidgets.QLineEdit()
+        self.txt_filename.setPlaceholderText("Path to render...")
+        self.btn_browse = QtWidgets.QPushButton(icon=get_icon("folder"))
+        self.btn_browse.setFixedSize(QtCore.QSize(30, 30))
+
+        self.btn_browse.clicked.connect(self._prompt_renderoutput)
+
+        filename_hlayout = QtWidgets.QHBoxLayout()
+        filename_hlayout.addWidget(self.txt_filename)
+        filename_hlayout.addWidget(self.btn_browse)
+        self.vlayout.addLayout(filename_hlayout)
+
+        self.vlayout.addSpacing(15)
 
         # Frame range
         self.cbox_framerange_options = QtWidgets.QComboBox()
@@ -136,6 +153,11 @@ class PlayblastDialog(QtWidgets.QDialog):
         self.spinbox_frame_end = QtWidgets.QSpinBox()
         self.spinbox_frame_interval = QtWidgets.QDoubleSpinBox()
 
+        self.spinbox_frame_start.setMinimum(-9999)
+        self.spinbox_frame_start.setMaximum(9999)
+        self.spinbox_frame_end.setMinimum(-9999)
+        self.spinbox_frame_end.setMaximum(9999)
+
         self.spinbox_frame_start.setValue(0)
         self.spinbox_frame_end.setValue(100)
         self.spinbox_frame_interval.setValue(1)
@@ -148,6 +170,10 @@ class PlayblastDialog(QtWidgets.QDialog):
         framerange_hlayout.addWidget(self.spinbox_frame_end)
         framerange_hlayout.addWidget(self.spinbox_frame_interval)
         self.formlayout.addRow("Frame Start / End / Interval", framerange_hlayout)
+
+        separator_1 = QtWidgets.QFrame()
+        separator_1.setFrameShape(QtWidgets.QFrame.HLine)
+        self.formlayout.addWidget(separator_1)
 
         # Resolution
         self.spinbox_horresolution = QtWidgets.QSpinBox()
@@ -200,6 +226,10 @@ class PlayblastDialog(QtWidgets.QDialog):
         self.cbox_camera.setCurrentIndex(0)
         self.formlayout.addRow("Camera",self.cbox_camera)
 
+        separator_2 = QtWidgets.QFrame()
+        separator_2.setFrameShape(QtWidgets.QFrame.HLine)
+        self.formlayout.addWidget(separator_2)
+
         # Renderer Combobox
         self.cbox_renderer = QtWidgets.QComboBox()
         self.cbox_renderer.addItems(playblast.iter_renderplugin_names())
@@ -207,6 +237,12 @@ class PlayblastDialog(QtWidgets.QDialog):
         self.formlayout.addRow("Renderer",self.cbox_renderer)
         
         self.vlayout.addLayout(self.formlayout)
+
+        # Playblast button
+
+        self.btn_playblast = QtWidgets.QPushButton()
+        self.btn_playblast.setText("Playblast!")
+        
         self.vlayout.addWidget(self.btn_playblast)
 
     def _update_resolution(self, res_tuple: tuple[int,int]):
@@ -227,3 +263,8 @@ class PlayblastDialog(QtWidgets.QDialog):
             self.spinbox_frame_start.setDisabled(True)
             self.spinbox_frame_end.setDisabled(True)
             self.spinbox_frame_interval.setDisabled(True)
+
+    def _prompt_renderoutput(self):
+        filename = prompt_output_path("Render result to...")
+        if filename:
+            self.txt_filename.setText(os.path.normpath(filename))
