@@ -9,7 +9,7 @@ from qtpy import QtWidgets, QtCore
 from pxr import Usd, UsdGeom
 from pxr.Usdviewq.stageView import StageView
 
-from . import playblast
+from . import playblast, framing_camera
 from ..resources import get_icon
 
 
@@ -87,19 +87,34 @@ def _savepicture_dialog(stage: Usd.Stage,
                                camera=camera)
 
     stage.RemovePrim(camera.GetPath())
-    
 
-class PlayblastDialog(QtWidgets.QDialog):
-    def __init__(self, stage: Usd.Stage, parent: QtCore.QObject) -> Any:
+
+class RenderReportable:
+    """
+    Mixin class to set up signals for everything needing slots.
+    """
+    render_progress = QtCore.Signal(int)
+    total_frames = QtCore.Signal(int)
+
+
+class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
+    def __init__(self, parent: QtCore.QObject, stage: Usd.Stage, stageview: StageView = None) -> Any:
         super(PlayblastDialog,self).__init__(parent=parent)
         self.setWindowTitle("USD Playblast")
 
         self.setStyleSheet("QToolButton::menu-indicator {              " 
                                                        "    width: 0px;"
                                                        "}              ")
-
         self._parent = parent
+        self._stage = stage
+        self._stageview = stageview
         self._has_viewer = "Scene Viewer" in parent._panels
+    
+        #self._total_frames = 0
+        #self._render_progress = 0
+
+        self.total_frames.connect(self._set_total_frames)
+        self.render_progress.connect(self._set_render_progress)
 
         width, height, margin = 600, 800, 15
         geometry = QtCore.QRect(margin, margin, 
@@ -154,7 +169,7 @@ class PlayblastDialog(QtWidgets.QDialog):
 
         self.spinbox_frame_start = QtWidgets.QSpinBox()
         self.spinbox_frame_end = QtWidgets.QSpinBox()
-        self.spinbox_frame_interval = QtWidgets.QDoubleSpinBox()
+        self.spinbox_frame_stride = QtWidgets.QDoubleSpinBox()
 
         self.spinbox_frame_start.setMinimum(-9999)
         self.spinbox_frame_start.setMaximum(9999)
@@ -163,7 +178,7 @@ class PlayblastDialog(QtWidgets.QDialog):
 
         self.spinbox_frame_start.setValue(0)
         self.spinbox_frame_end.setValue(100)
-        self.spinbox_frame_interval.setValue(1)
+        self.spinbox_frame_stride.setValue(1)
         
         self.cbox_framerange_options.currentIndexChanged.connect(self._update_framerange_options)
         self._update_framerange_options()
@@ -171,8 +186,8 @@ class PlayblastDialog(QtWidgets.QDialog):
         framerange_hlayout = QtWidgets.QHBoxLayout()
         framerange_hlayout.addWidget(self.spinbox_frame_start)
         framerange_hlayout.addWidget(self.spinbox_frame_end)
-        framerange_hlayout.addWidget(self.spinbox_frame_interval)
-        self.formlayout.addRow("Frame Start / End / Interval", framerange_hlayout)
+        framerange_hlayout.addWidget(self.spinbox_frame_stride)
+        self.formlayout.addRow("Frame Start / End / Stride", framerange_hlayout)
 
         separator_1 = QtWidgets.QFrame()
         separator_1.setFrameShape(QtWidgets.QFrame.HLine)
@@ -222,9 +237,9 @@ class PlayblastDialog(QtWidgets.QDialog):
             cam_name = os.path.basename(cam.GetPath().pathString)
             self.cbox_camera.addItem(f"Cam: {cam_name}", cam)
         
-        self.cbox_camera.addItem("Stage-framing camera")
+        self.cbox_camera.addItem("Stage Framing Camera")
         if self._has_viewer:
-            self.cbox_camera.addItem("Scene Viewer camera")
+            self.cbox_camera.addItem("Scene Viewer Camera")
 
         self.cbox_camera.setCurrentIndex(0)
         self.formlayout.addRow("Camera",self.cbox_camera)
@@ -272,8 +287,14 @@ class PlayblastDialog(QtWidgets.QDialog):
 
         self.btn_playblast = QtWidgets.QPushButton()
         self.btn_playblast.setText("Playblast!")
-        
         self.vlayout.addWidget(self.btn_playblast)
+
+        self.btn_playblast.clicked.connect(self.playblast_callback)
+
+        # Progress bar
+        self.progressbar = QtWidgets.QProgressBar(self)
+        self.progressbar.setFormat("Not started...")
+        self.vlayout.addWidget(self.progressbar)
 
     def _update_resolution(self, res_tuple: tuple[int,int]):
         self.spinbox_horresolution.setValue(res_tuple[0])
@@ -284,15 +305,15 @@ class PlayblastDialog(QtWidgets.QDialog):
         if index == 0:
             self.spinbox_frame_start.setDisabled(False)
             self.spinbox_frame_end.setDisabled(True)
-            self.spinbox_frame_interval.setDisabled(True)
+            self.spinbox_frame_stride.setDisabled(True)
         elif index == 1:
             self.spinbox_frame_start.setDisabled(False)
             self.spinbox_frame_end.setDisabled(False)
-            self.spinbox_frame_interval.setDisabled(False)
+            self.spinbox_frame_stride.setDisabled(False)
         elif index == 2:
             self.spinbox_frame_start.setDisabled(True)
             self.spinbox_frame_end.setDisabled(True)
-            self.spinbox_frame_interval.setDisabled(True)
+            self.spinbox_frame_stride.setDisabled(True)
 
     def _prompt_renderoutput(self):
         filename = prompt_output_path("Render result to...")
@@ -316,6 +337,118 @@ class PlayblastDialog(QtWidgets.QDialog):
         
         return purposes
 
+    def _set_total_frames(self, frames: int):
+        """
+        Update progress bar with reported maximum frames
+        """
+        #self._total_frames = frames
+        self.progressbar.setFormat(f"Rendering %v / {frames} frames...")
+        self.progressbar.setMinimum(1)
+        self.progressbar.setMaximum(frames)
+    
+    def _set_render_progress(self, frame: int):
+        """
+        Increment progress bar with reported rendered frames.
+        """
+        #self._render_progress = frame
+        self.progressbar.setValue(frame)
+
+    def _construct_frames_argument(self) -> str:
+        start = self.spinbox_frame_start.value()
+        end = self.spinbox_frame_end.value()
+        stride = self.spinbox_frame_stride.value()
+
+        opt_index = self.cbox_framerange_options.currentIndex()
+
+        if opt_index == 0:
+            return f"{start}"
+        elif opt_index == 1:
+            return playblast.get_frames_string(start,end,stride)  
+        elif opt_index == 2:
+            if self._stageview:
+                return playblast.get_stageview_frame(self._stageview)      
+
+    def _get_camera(self) -> tuple[UsdGeom.Camera,bool]:
+        """
+        Returns a camera and whether it should be destroyed afterwards.
+        -> UsdGeom.Camera, should_destroy()
+        """
+
+        box_text = self.cbox_camera.currentText()
+        data = self.cbox_camera.currentData()
+
+        width = self.spinbox_horresolution.value()
+        height = self.spinbox_verresolution.value()
+
+        aspect_ratio: float = float(width) / float(height)
+
+        if data is not None:
+            data = UsdGeom.Camera(data)
+            v_aperture = data.GetVerticalApertureAttr()
+            # ensure that camera can render desired aspect ratio.
+            if not v_aperture.IsValid():
+                v_aperture = 24
+            else:
+                v_aperture = v_aperture.Get(0)
+
+            data.CreateHorizontalApertureAttr(v_aperture * aspect_ratio)
+            data.CreateHorizontalApertureOffsetAttr(0)
+            data.CreateVerticalApertureAttr(v_aperture)
+            data.CreateVerticalApertureOffsetAttr(0)
+
+            # Camera is in scene, doesn't need to be deleted.
+            return data, False
+
+        elif "Framing" in box_text:
+            camera = framing_camera.create_framing_camera_in_stage(
+                self._stage,
+                name="Playblast_framingCam",
+                width=width,
+                height=height
+                )
+            return camera, True
+        elif "Viewer" in box_text:
+            camera = playblast.camera_from_stageview(self._stage, self._stageview, "Playblast_viewerCam")
+            # ensure camera aspect ratio
+            # Aperture size (24) is based on the size of a full frame SLR camera sensor
+            # https://en.wikipedia.org/wiki/Image_sensor_format#Common_image_sensor_formats
+            aspect_ratio: float = width / float(height)
+            camera.CreateHorizontalApertureAttr(24 * aspect_ratio)
+            camera.CreateHorizontalApertureOffsetAttr(0)
+            camera.CreateVerticalApertureAttr(24)
+            camera.CreateVerticalApertureOffsetAttr(0)
+            return camera, True
+        
+        return None, False
+
+    def playblast_callback(self):
+        frames = self._construct_frames_argument()
+        camera, should_destroy = self._get_camera()
+
+        path = self.txt_filename.text()
+
+        print(frames,camera,path)
+        if not path:
+            return
+
+        playblast.render_playblast(self._stage,
+                                   path,
+                                   frames,
+                                   self.spinbox_horresolution.value(),
+                                   camera,
+                                   "Very High",
+                                   self.cbox_renderer.currentText(),
+                                   "sRGB",
+                                   self._gather_purposes(),
+                                   self
+                                   )
+        
+        self.progressbar.setFormat("Rendered %v frames!")
+
+        # cleanup camera if needed
+        if should_destroy:
+            self._stage.RemovePrim(camera.GetPath())
+
     def ui_pre_hook(self, vlayout: QtWidgets.QVBoxLayout):
         """
         Override hook to insert QtWidgets BEFORE the main playblast interface.
@@ -336,5 +469,5 @@ class PlayblastDialog(QtWidgets.QDialog):
         # Example: add some text
         # txt = QtWidgets.QLabel()
         # txt.setText("I go after the interface!")
-        # txt.setFixedHeight(30)git 
+        # txt.setFixedHeight(30)
         # vlayout.addWidget(txt)

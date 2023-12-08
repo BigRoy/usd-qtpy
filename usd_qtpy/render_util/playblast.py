@@ -10,6 +10,7 @@ from qtpy import QtCore
 from pxr import Tf, Sdf, Usd, UsdGeom, UsdAppUtils
 from pxr.Usdviewq.stageView import StageView
 
+from . import dialog
 
 def _setup_opengl_widget(width: int, height: int, samples: int = 4):
     """
@@ -68,6 +69,9 @@ def camera_from_stageview(stage: Usd.Stage,
     stageview.ExportFreeCameraToStage(stage, name)
     return UsdGeom.Camera.Get(stage, Sdf.Path(f"/{name}"))
 
+def get_stageview_frame(stageview: StageView):
+    time: Usd.TimeCode = stageview._dataModel.currentFrame
+    return time.GetValue()
 
 # Source: UsdAppUtils.colorArgs.py
 def get_color_args() -> set[str]:
@@ -159,7 +163,8 @@ def render_playblast(stage: Usd.Stage,
                      complexity: Union[str, int] = "High",
                      renderer: str = None,
                      colormode: str = "sRGB",
-                     purposes: list[str] = None) -> list[str]:
+                     purposes: list[str] = None,
+                     qt_report_instance: dialog.RenderReportable = None) -> list[str]:
     """
     Render one or multiple frames from a usd stage's camera.
 
@@ -175,7 +180,14 @@ def render_playblast(stage: Usd.Stage,
             platform's default renderer, GL or Metal (osx)
         colormode (str): The color management mode to render with.
             Defaults to "sRGB". See `get_color_args` for available options.
-    
+        purposes (list[str]): List of purposes to render. 
+            Valid arguments in list are: 'default', 'render', 'proxy', 'guide'
+        qt_report_instance: a Qt object to report progress back to, through
+            render_progress -> QtCore.Signal(int),
+            total_frames -> QtCore.Signal(int),
+            which are implemented in mixin class 
+            render_util.dialog.RenderReportable.
+
     Returns:
         list[str]: The rendered output files.
 
@@ -262,9 +274,17 @@ def render_playblast(stage: Usd.Stage,
     if not frame_iterator or not frames:
         frame_iterator = [Usd.TimeCode.EarliestTime()]
 
+    if qt_report_instance:
+        total_frames = len([f for f in frame_iterator])
+        qt_report_instance.total_frames.emit(total_frames)
+
     output_files = []
-    for time_code in frame_iterator:
+    for frame_nr, time_code in enumerate(frame_iterator):
         current_frame = outputpath.format(frame=time_code.GetValue())
+        
+        if qt_report_instance:
+            qt_report_instance.render_progress.emit(frame_nr + 1)
+
         try:
             frame_recorder.Record(stage, camera, time_code, current_frame)
         except Tf.ErrorException as e:
