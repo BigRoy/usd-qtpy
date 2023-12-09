@@ -199,14 +199,7 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
 
         # Camera selection
         self.cbox_camera = QtWidgets.QComboBox()
-        for cam in playblast.iter_stage_cameras(stage):
-            cam: UsdGeom.Camera
-            cam_name = os.path.basename(cam.GetPath().pathString)
-            self.cbox_camera.addItem(f"Cam: {cam_name}", cam)
-        
-        self.cbox_camera.addItem("Stage Framing Camera")
-        if self._has_viewer:
-            self.cbox_camera.addItem("Scene Viewer Camera")
+        self.populate_camera_combobox(self.cbox_camera)
 
         self.cbox_camera.setCurrentIndex(0)
         self.formlayout.addRow("Camera",self.cbox_camera)
@@ -239,6 +232,12 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
 
         self.formlayout.addRow("Included purposes:",purpose_vlayout)
 
+        # Complexity combobox
+        self.cbox_complexity = QtWidgets.QComboBox()
+        self.cbox_complexity.addItems(playblast.get_complexity_levels())
+        self.cbox_complexity.setCurrentIndex(2)
+        self.formlayout.addRow("Complexity / Quality",self.cbox_complexity)
+
         # Renderer Combobox
         self.cbox_renderer = QtWidgets.QComboBox()
         self.cbox_renderer.addItems(playblast.iter_renderplugin_names())
@@ -246,12 +245,6 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         self.formlayout.addRow("Renderer",self.cbox_renderer)
         
         self.vlayout.addLayout(self.formlayout)
-
-        # Complexity combobox
-        self.cbox_complexity = QtWidgets.QComboBox()
-        self.cbox_complexity.addItems(playblast.get_complexity_levels())
-        self.cbox_complexity.setCurrentIndex(0)
-        self.formlayout.addRow(self.cbox_complexity)
 
         # Ui post hook
         self.ui_post_hook(self.vlayout)
@@ -457,6 +450,20 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         framerange_hlayout.addWidget(self.spinbox_frame_end)
         framerange_hlayout.addWidget(self.spinbox_frame_stride)
         formlayout.addRow("Frame Start / End / Stride", framerange_hlayout)
+
+    def populate_camera_combobox(self, cbox_camera: QtWidgets.QComboBox):
+        """
+        Override hook to populate camera choices.
+        """
+        
+        for cam in playblast.iter_stage_cameras(self._stage):
+            cam: UsdGeom.Camera
+            cam_name = os.path.basename(cam.GetPath().pathString)
+            cbox_camera.addItem(f"Cam: {cam_name}", cam)
+        
+        cbox_camera.addItem("Stage Framing Camera")
+        if self._has_viewer:
+            cbox_camera.addItem("Scene Viewer Camera")
 
     def ui_pre_hook(self, vlayout: QtWidgets.QVBoxLayout):
         """
