@@ -100,7 +100,8 @@ def add_turntable_spin_op(xformable: UsdGeom.Xformable,
 def turntable_from_file(stage: Usd.Stage,
                         turntable_filename: str = R"./assets/turntable/turntable_preset.usda",
                         export_path: str = R"./temp/render",
-                        renderer: str = "GL"):
+                        renderer: str = "GL",
+                        camera_path : Union[str, Sdf.Path] = None):
     """
     #### STILL UNDER CONSTRUCTION
 
@@ -151,7 +152,24 @@ def turntable_from_file(stage: Usd.Stage,
 
     # check if required prims are actually there
     turntable_parent_prim = ttable_stage.GetPrimAtPath("/turntable_reference/parent")
+    
     turntable_camera = next(playblast.iter_stage_cameras(ttable_stage), None)
+
+    if camera_path is not None:
+        if isinstance(camera_path, Sdf.Path):
+            camera_path = camera_path.pathString
+
+        # Reroute root (say that 10 times)
+        camera_path.replace("turntable","turntable_reference")
+        camera_path = Sdf.Path(camera_path)    
+        
+        camera_prim = stage.GetPrimAtPath(camera_path)
+        if camera_prim.IsValid():
+            turntable_camera = UsdGeom.Camera(camera_prim)
+        else:
+            raise RuntimeError(f"Turntable Camera at "
+                               f"{camera_path.pathString} is missing.")
+        
 
     # Validate
     missing = []
