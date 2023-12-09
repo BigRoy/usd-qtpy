@@ -6,7 +6,7 @@ import os
 from pxr import Usd, UsdGeom, Sdf, Gf
 from qtpy import QtCore
 
-from . import framing_camera, playblast
+from . import framing_camera, playblast, dialog
 from ..layer_editor import LayerTreeWidget, LayerStackModel
 
 
@@ -101,7 +101,8 @@ def turntable_from_file(stage: Usd.Stage,
                         turntable_filename: str = R"./assets/turntable/turntable_preset.usda",
                         export_path: str = R"./temp/render",
                         renderer: str = "GL",
-                        camera_path : Union[str, Sdf.Path] = None):
+                        camera_path : Union[str, Sdf.Path] = None,
+                        qt_report_instance: dialog.RenderReportable = None):
     """
     #### STILL UNDER CONSTRUCTION
 
@@ -277,7 +278,8 @@ def turntable_from_file(stage: Usd.Stage,
                                frames=frames_string,
                                width=1920,
                                camera=turntable_camera,
-                               renderer=renderer)
+                               renderer=renderer,
+                               qt_report_instance=qt_report_instance)
     
     # explicitly free scene to make composite file available for deletion
     del realstage
