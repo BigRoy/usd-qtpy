@@ -93,8 +93,8 @@ class RenderReportable:
     """
     Mixin class to set up signals for everything needing slots.
     """
-    render_progress = QtCore.Signal(int)
-    total_frames = QtCore.Signal(int)
+    render_progress: QtCore.Signal = QtCore.Signal(int)
+    total_frames: QtCore.Signal = QtCore.Signal(int)
 
 
 class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
@@ -109,9 +109,6 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         self._stage = stage
         self._stageview = stageview
         self._has_viewer = "Scene Viewer" in parent._panels
-    
-        #self._total_frames = 0
-        #self._render_progress = 0
 
         self.total_frames.connect(self._set_total_frames)
         self.render_progress.connect(self._set_render_progress)
@@ -157,37 +154,7 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         self.vlayout.addSpacing(15)
 
         # Frame range
-        self.cbox_framerange_options = QtWidgets.QComboBox()
-        self.cbox_framerange_options.addItems(("Single frame", "Frame range"))
-
-        if self._has_viewer:
-            self.cbox_framerange_options.addItem("Frame from view")
-        
-        self.cbox_framerange_options.setCurrentIndex(0)
-
-        self.formlayout.addRow("Frame range options",self.cbox_framerange_options)
-
-        self.spinbox_frame_start = QtWidgets.QSpinBox()
-        self.spinbox_frame_end = QtWidgets.QSpinBox()
-        self.spinbox_frame_stride = QtWidgets.QDoubleSpinBox()
-
-        self.spinbox_frame_start.setMinimum(-9999)
-        self.spinbox_frame_start.setMaximum(9999)
-        self.spinbox_frame_end.setMinimum(-9999)
-        self.spinbox_frame_end.setMaximum(9999)
-
-        self.spinbox_frame_start.setValue(0)
-        self.spinbox_frame_end.setValue(100)
-        self.spinbox_frame_stride.setValue(1)
-        
-        self.cbox_framerange_options.currentIndexChanged.connect(self._update_framerange_options)
-        self._update_framerange_options()
-
-        framerange_hlayout = QtWidgets.QHBoxLayout()
-        framerange_hlayout.addWidget(self.spinbox_frame_start)
-        framerange_hlayout.addWidget(self.spinbox_frame_end)
-        framerange_hlayout.addWidget(self.spinbox_frame_stride)
-        self.formlayout.addRow("Frame Start / End / Stride", framerange_hlayout)
+        self.frame_range_callback(self.formlayout)
 
         separator_1 = QtWidgets.QFrame()
         separator_1.setFrameShape(QtWidgets.QFrame.HLine)
@@ -279,6 +246,12 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         self.formlayout.addRow("Renderer",self.cbox_renderer)
         
         self.vlayout.addLayout(self.formlayout)
+
+        # Complexity combobox
+        self.cbox_complexity = QtWidgets.QComboBox()
+        self.cbox_complexity.addItems(playblast.get_complexity_levels())
+        self.cbox_complexity.setCurrentIndex(0)
+        self.formlayout.addRow(self.cbox_complexity)
 
         # Ui post hook
         self.ui_post_hook(self.vlayout)
@@ -436,7 +409,7 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
                                    frames,
                                    self.spinbox_horresolution.value(),
                                    camera,
-                                   "Very High",
+                                   self.cbox_complexity.currentText(),
                                    self.cbox_renderer.currentText(),
                                    "sRGB",
                                    self._gather_purposes(),
@@ -448,6 +421,42 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         # cleanup camera if needed
         if should_destroy:
             self._stage.RemovePrim(camera.GetPath())
+
+    def frame_range_callback(self, formlayout: QtWidgets.QFormLayout):
+        """
+        Override this hook to change frame range widget
+        """
+        self.cbox_framerange_options = QtWidgets.QComboBox()
+        self.cbox_framerange_options.addItems(("Single frame", "Frame range"))
+
+        if self._has_viewer:
+            self.cbox_framerange_options.addItem("Frame from view")
+        
+        self.cbox_framerange_options.setCurrentIndex(0)
+
+        self.formlayout.addRow("Frame range options",self.cbox_framerange_options)
+
+        self.spinbox_frame_start = QtWidgets.QSpinBox()
+        self.spinbox_frame_end = QtWidgets.QSpinBox()
+        self.spinbox_frame_stride = QtWidgets.QDoubleSpinBox()
+
+        self.spinbox_frame_start.setMinimum(-9999)
+        self.spinbox_frame_start.setMaximum(9999)
+        self.spinbox_frame_end.setMinimum(-9999)
+        self.spinbox_frame_end.setMaximum(9999)
+
+        self.spinbox_frame_start.setValue(0)
+        self.spinbox_frame_end.setValue(100)
+        self.spinbox_frame_stride.setValue(1)
+        
+        self.cbox_framerange_options.currentIndexChanged.connect(self._update_framerange_options)
+        self._update_framerange_options()
+
+        framerange_hlayout = QtWidgets.QHBoxLayout()
+        framerange_hlayout.addWidget(self.spinbox_frame_start)
+        framerange_hlayout.addWidget(self.spinbox_frame_end)
+        framerange_hlayout.addWidget(self.spinbox_frame_stride)
+        formlayout.addRow("Frame Start / End / Stride", framerange_hlayout)
 
     def ui_pre_hook(self, vlayout: QtWidgets.QVBoxLayout):
         """
