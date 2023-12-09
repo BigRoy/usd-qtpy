@@ -56,14 +56,15 @@ def iter_stage_cameras(stage: Usd.Stage,
             yield prim
 
 
-def get_file_cameras(path: str) -> list[UsdGeom.Camera]:
+def get_file_cameras(path: str) -> list[Sdf.Path]:
     """
     Get USD cameras from USD file
-    Returns a list.
+    Returns a list of paths
     """
     # cast to list, because the virtual loaded scene goes out of scope.
-    stage = Usd.Stage.CreateInMemory(path)
-    cameras = [c for c in iter_stage_cameras(stage)]
+    stage = Usd.Stage.Open(path)
+    cameras = [c.GetPath() for c in iter_stage_cameras(stage)]
+    del stage
     return cameras
 
 def camera_from_stageview(stage: Usd.Stage, 

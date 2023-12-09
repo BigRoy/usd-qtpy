@@ -249,6 +249,8 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         # Ui post hook
         self.ui_post_hook(self.vlayout)
 
+        self.vlayout.addStretch()
+
         # Playblast button
 
         self.btn_playblast = QtWidgets.QPushButton()
@@ -487,3 +489,102 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         # txt.setText("I go after the interface!")
         # txt.setFixedHeight(30)
         # vlayout.addWidget(txt)
+
+
+class TurntableDialog(PlayblastDialog):
+    def __init__(self, parent: QtCore.QObject, stage: Usd.Stage, stageview: StageView = None) -> Any:
+        self._turntablefile = R"./assets/turntable/turntable_preset.usda"
+        
+        super(TurntableDialog,self).__init__(parent,stage,stageview)
+        self.setWindowTitle("USD Turntable Playblast")
+
+        repopulate_cam = partial(self.populate_camera_combobox,self.cbox_camera)
+        self.cbox_turntable_type.currentIndexChanged.connect(
+            repopulate_cam
+            )
+
+    def populate_camera_combobox(self, cbox_camera: QtWidgets.QComboBox, index: int = 0):
+        """
+        (re)populate camera box when it's needed.
+        Catches a signal argument in index.
+        """
+        
+        if index == 2:
+            cbox_camera.clear()
+            cbox_camera.setDisabled(False)
+            cams = playblast.get_file_cameras(self._turntablefile)
+            for cam in cams:
+                cam_name = os.path.basename(cam.pathString)
+                # store path + string in camera combobox
+                cbox_camera.addItem(cam_name,cam)
+        else:
+            cbox_camera.clear()
+            cbox_camera.addItem("Generated Camera")
+            cbox_camera.setDisabled(True)
+
+        self.update_textfield_turntablefile(index)
+
+    def update_textfield_turntablefile(self, index: int = 0):
+        if index == 2:
+            self.txt_turntable_filename.setDisabled(False)
+            self.btn_browse_turntable.setDisabled(False)
+            self.lbl_turntable_file.setDisabled(False)
+        else:
+            self.txt_turntable_filename.setDisabled(True)
+            self.btn_browse_turntable.setDisabled(True)
+            self.lbl_turntable_file.setDisabled(True)
+
+    def frame_range_callback(self, formlayout: QtWidgets.QFormLayout):
+        """
+        Frame range is a different story for turntables.
+        It's defined by a starting frame, and a length
+        """
+        
+        self.spinbox_frame_start = QtWidgets.QSpinBox()
+        self.spinbox_frame_length = QtWidgets.QSpinBox()
+
+        self.spinbox_frame_start.setMinimum(-9999)
+        self.spinbox_frame_start.setMaximum(9999)
+        self.spinbox_frame_length.setMinimum(1)
+        self.spinbox_frame_length.setMaximum(9999)
+
+        self.spinbox_frame_start.setValue(1)
+        self.spinbox_frame_length.setValue(100)
+
+        framerange_hlayout = QtWidgets.QHBoxLayout()
+        framerange_hlayout.addWidget(self.spinbox_frame_start)
+        framerange_hlayout.addWidget(self.spinbox_frame_length)
+
+        formlayout.addRow("Starting Frame / Length", framerange_hlayout)
+
+    def ui_pre_hook(self, vlayout: QtWidgets.QVBoxLayout):
+                
+        pre_form = QtWidgets.QFormLayout()
+        pre_form.setHorizontalSpacing(150)
+
+        # Turntable type chooser
+        self.cbox_turntable_type = QtWidgets.QComboBox()
+        turntable_types = ("Rotate camera",
+                          "Rotate subject",
+                          "Preset from file")
+        self.cbox_turntable_type.addItems(turntable_types)
+        pre_form.addRow("Turntable Type", self.cbox_turntable_type)
+        
+        # Turntable file chooser
+        self.lbl_turntable_file = QtWidgets.QLabel(self)
+        self.lbl_turntable_file.setText("Path to get turntable from...")
+        self.lbl_turntable_file.setFixedHeight(30)
+        pre_form.addRow(self.lbl_turntable_file)
+
+        self.txt_turntable_filename = QtWidgets.QLineEdit()
+        self.txt_turntable_filename.setPlaceholderText("Empty - Use internal preset")
+        self.btn_browse_turntable = QtWidgets.QPushButton(icon=get_icon("folder"))
+        self.btn_browse_turntable.setFixedSize(QtCore.QSize(30, 30))
+
+        turntable_filename_hlayout = QtWidgets.QHBoxLayout()
+        turntable_filename_hlayout.addWidget(self.txt_turntable_filename)
+        turntable_filename_hlayout.addWidget(self.btn_browse_turntable)
+        pre_form.addRow(turntable_filename_hlayout)
+
+        vlayout.addLayout(pre_form)
+        self.vlayout.addSpacing(15)
