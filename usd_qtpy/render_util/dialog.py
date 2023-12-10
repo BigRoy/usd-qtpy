@@ -605,3 +605,9 @@ class TurntableDialog(PlayblastDialog):
 
         vlayout.addLayout(pre_form)
         self.vlayout.addSpacing(15)
+
+    def playblast_callback(self):
+        """
+        Prevent playblast button from doing anything for now.
+        """
+        raise NotImplementedError()
