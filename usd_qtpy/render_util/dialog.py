@@ -492,7 +492,9 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
 
 
 class TurntableDialog(PlayblastDialog):
-    def __init__(self, parent: QtCore.QObject, stage: Usd.Stage, stageview: StageView = None) -> Any:
+    def __init__(self, parent: QtCore.QObject, 
+                 stage: Usd.Stage, 
+                 stageview: StageView = None):
         self._turntablefile = R"./assets/turntable/turntable_preset.usda"
         
         super(TurntableDialog,self).__init__(parent,stage,stageview)
@@ -503,20 +505,35 @@ class TurntableDialog(PlayblastDialog):
             repopulate_cam
             )
 
-    def populate_camera_combobox(self, cbox_camera: QtWidgets.QComboBox, index: int = 0):
+        # if turntable filename loses focus, attempt to repopulate camera field.
+        self.txt_turntable_filename.editingFinished.connect(repopulate_cam)
+
+    def populate_camera_combobox(self, 
+                                 cbox_camera: QtWidgets.QComboBox, 
+                                 index: int = None):
         """
         (re)populate camera box when it's needed.
         Catches a signal argument in index.
         """
-        
+        if index is None or not isinstance(index, int):
+            index = self.cbox_turntable_type.currentIndex()
+
         if index == 2:
             cbox_camera.clear()
             cbox_camera.setDisabled(False)
-            cams = playblast.get_file_cameras(self._turntablefile)
-            for cam in cams:
-                cam_name = os.path.basename(cam.pathString)
-                # store path + string in camera combobox
-                cbox_camera.addItem(cam_name,cam)
+            
+            self._turntablefile = self.txt_turntable_filename.text()
+            
+            if not self._turntablefile:
+                self._turntablefile = R"./assets/turntable/turntable_preset.usda"
+
+
+            if os.path.isfile(self._turntablefile):
+                cams = playblast.get_file_cameras(self._turntablefile)
+                for cam in cams:
+                    cam_name = os.path.basename(cam.pathString)
+                    # store path + string in camera combobox
+                    cbox_camera.addItem(cam_name,cam)
         else:
             cbox_camera.clear()
             cbox_camera.addItem("Generated Camera")
