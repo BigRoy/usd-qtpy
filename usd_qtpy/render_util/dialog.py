@@ -546,10 +546,10 @@ class TurntableDialog(PlayblastDialog):
 
             if os.path.isfile(self._turntablefile):
                 cams = playblast.get_file_cameras(self._turntablefile)
-                cams = (str(c.pathString)\
+                cams_string = (str(c.pathString)\
                         .replace("turntable", "turntable_reference") 
                         for c in cams)
-                cams = [Sdf.Path(c) for c in cams]
+                cams = [Sdf.Path(c) for c in cams_string]
                 
                 if not cams:
                     # No camera, disable
