@@ -634,6 +634,11 @@ class TurntableDialog(PlayblastDialog):
 
         formlayout.addRow("Starting Frame / Length", framerange_hlayout)
 
+        self.spinbox_loops = QtWidgets.QSpinBox()
+        self.spinbox_frame_length.setMinimum(1)
+        self.spinbox_frame_length.setMaximum(99)
+        formlayout.addRow("Repetitions", self.spinbox_loops)
+
     def ui_pre_hook(self, vlayout: QtWidgets.QVBoxLayout):
                 
         pre_form = QtWidgets.QFormLayout()
@@ -672,7 +677,20 @@ class TurntableDialog(PlayblastDialog):
         Prevent playblast button from doing anything for now.
         """
         ttable_type = self.cbox_turntable_type.currentIndex()
-
+        if ttable_type == 0:
+            # Rotate camera around scene
+            ...
+        elif ttable_type == 1:
+            # Group scene into Xform temporarily,
+            # make the Xform spin,
+            # generate framing camera
+            # render
+            # ungroup from Xform
+            # remove framing camera and temp root Xform
+            ...
+        elif ttable_type == 2:
+            # turntable from file routine.
+            ...
 
 
         raise NotImplementedError()

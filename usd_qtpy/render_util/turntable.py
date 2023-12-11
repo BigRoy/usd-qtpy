@@ -8,6 +8,7 @@ from qtpy import QtCore
 
 from . import framing_camera, playblast, dialog
 from ..layer_editor import LayerTreeWidget, LayerStackModel
+from ..lib import usd
 
 
 def create_turntable_xform(stage: Usd.Stage,
@@ -97,10 +98,43 @@ def add_turntable_spin_op(xformable: UsdGeom.Xformable,
     return spin_op
 
 
+def get_turntable_frames_string(length: int = 100,
+                                frame_start: int = 0,
+                                repeats: int = 1) -> str:
+    """
+    Get a usable string argument for frames from turntable time params.
+    """
+    frame_end = frame_start + (length * repeats) - 1
+    return playblast.get_frames_string(frame_start,frame_end,1)
+
+
+def pack_stage_root_to_prim(stage: Usd.Stage, goal_prim: Usd.Prim):
+    """
+    Move children of stage root to a primitive.
+    """
+    stage_root = stage.GetPseudoRoot()
+    children: list[Usd.Prim] = list(stage_root.GetAllChildren())
+        
+    usd.parent_prims(children, goal_prim.GetPath())
+
+
+def unpack_prim_to_stage_root(stage: Usd.Stage, from_prim: Usd.Prim):
+    """
+    Move children from a primitive to stage root.
+    """
+    stage_root = stage.GetPseudoRoot()
+    children: list[Usd.Prim] = list(from_prim.GetAllChildren())
+    
+    usd.parent_prims(children,stage_root.GetPath())
+
+
 def turntable_from_file(stage: Usd.Stage,
                         turntable_filename: str = R"./assets/turntable/turntable_preset.usda",
                         export_path: str = R"./temp/render",
                         renderer: str = "GL",
+                        length: int = 100,
+                        frame_start: int = 1,
+                        repeats: int = 1,
                         camera_path : Union[str, Sdf.Path] = None,
                         qt_report_instance: dialog.RenderReportable = None):
     """
@@ -262,7 +296,7 @@ def turntable_from_file(stage: Usd.Stage,
 
     # frame range 1-100 in standard file
     # get_file_timerange_as_string should be preferred, but it doesn't work atm.
-    frames_string = playblast.get_frames_string(1, 100)
+    frames_string = get_turntable_frames_string(length,frame_start,repeats)
     render_path = os.path.join(export_path, "turntablefile_###.png")
     render_path = os.path.abspath(render_path)
 

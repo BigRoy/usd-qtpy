@@ -145,7 +145,10 @@ def get_frames_string(start_time: int,
     return collect
 
 
-def tuples_to_frames_string(time_tuples: list[Union[tuple[int], tuple[int, int], tuple[int, int, float]]]) -> str:
+def tuples_to_frames_string(
+        time_tuples: list[Union[tuple[int],
+                                tuple[int, int],
+                                tuple[int, int, float]]]) -> str:
     """
     Convert an iterable (e.g. list/generator) of tuples containing structured frame data:
     tuple(start_time, end_time, frame_stride), same as the arguments to get_frames_string,
@@ -175,7 +178,8 @@ def render_playblast(stage: Usd.Stage,
                      renderer: str = None,
                      colormode: str = "sRGB",
                      purposes: list[str] = None,
-                     qt_report_instance: dialog.RenderReportable = None) -> list[str]:
+                     qt_report_instance: dialog.RenderReportable = None
+                     ) -> list[str]:
     """
     Render one or multiple frames from a usd stage's camera.
 
