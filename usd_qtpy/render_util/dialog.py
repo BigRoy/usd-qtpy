@@ -6,7 +6,7 @@ from typing import Any
 from functools import partial
 
 from qtpy import QtWidgets, QtCore
-from pxr import Usd, UsdGeom
+from pxr import Usd, UsdGeom, Sdf
 from pxr.Usdviewq.stageView import StageView
 
 from . import playblast, framing_camera
@@ -32,6 +32,15 @@ def _rectify_path_framenumberspec(path: str, padding: int =  4):
     file += "#" * padding
 
     return os.path.join(base, file + extension)
+
+
+def prompt_input_path(caption: str="Load item") -> str:
+    
+    filename, _ = QtWidgets.QFileDialog.getOpenFileName(
+        caption=caption,
+        filter="USD (*.usd *.usda *.usdc)"
+    )
+    return filename
 
 
 def prompt_output_path(caption="Save frame"):
@@ -463,9 +472,9 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
             cam_name = os.path.basename(cam.GetPath().pathString)
             cbox_camera.addItem(f"Cam: {cam_name}", cam)
         
-        cbox_camera.addItem("Stage Framing Camera")
+        cbox_camera.addItem("New: Framing Camera")
         if self._has_viewer:
-            cbox_camera.addItem("Scene Viewer Camera")
+            cbox_camera.addItem("New: Camera from View")
 
     def ui_pre_hook(self, vlayout: QtWidgets.QVBoxLayout):
         """
@@ -507,6 +516,13 @@ class TurntableDialog(PlayblastDialog):
 
         # if turntable filename loses focus, attempt to repopulate camera field.
         self.txt_turntable_filename.editingFinished.connect(repopulate_cam)
+        self.btn_playblast.setText("Playblast Turntable!")
+
+    def _prompt_turntablefile(self):
+        filename = prompt_input_path("Get Turntable from...")
+        if filename:
+            self.txt_turntable_filename.setText(os.path.normpath(filename))
+            self.populate_camera_combobox(self.cbox_camera)
 
     def populate_camera_combobox(self, 
                                  cbox_camera: QtWidgets.QComboBox, 
@@ -521,23 +537,48 @@ class TurntableDialog(PlayblastDialog):
         if index == 2:
             cbox_camera.clear()
             cbox_camera.setDisabled(False)
+            self.btn_playblast.setDisabled(False)
             
             self._turntablefile = self.txt_turntable_filename.text()
             
             if not self._turntablefile:
                 self._turntablefile = R"./assets/turntable/turntable_preset.usda"
 
-
             if os.path.isfile(self._turntablefile):
                 cams = playblast.get_file_cameras(self._turntablefile)
-                for cam in cams:
-                    cam_name = os.path.basename(cam.pathString)
-                    # store path + string in camera combobox
-                    cbox_camera.addItem(cam_name,cam)
+                cams = (str(c.pathString)\
+                        .replace("turntable", "turntable_reference") 
+                        for c in cams)
+                cams = [Sdf.Path(c) for c in cams]
+                
+                if not cams:
+                    # No camera, disable
+                    cbox_camera.addItem("No camera found...")
+                    cbox_camera.setDisabled(True)
+                    self.btn_playblast.setDisabled(True)
+                else:
+                    for cam in cams:
+                        cam_name = os.path.basename(cam.pathString)
+                        # store path + string in camera combobox
+                        cbox_camera.addItem(f"Cam: {cam_name}",cam)
+            else:
+                # No camera, disable
+                cbox_camera.addItem("Turntable file not valid")
+                cbox_camera.setDisabled(True)
+                self.btn_playblast.setDisabled(True)
         else:
             cbox_camera.clear()
-            cbox_camera.addItem("Generated Camera")
-            cbox_camera.setDisabled(True)
+            cbox_camera.setDisabled(False)
+            for cam in playblast.iter_stage_cameras(self._stage):
+                cam: UsdGeom.Camera
+                campath = cam.GetPath().pathString
+                cam_name = os.path.basename(campath)
+                cbox_camera.addItem(f"Cam: {cam_name}", cam_name)
+
+            cbox_camera.addItem("New: Framing Camera")
+            if self._has_viewer:
+                cbox_camera.addItem("New: Camera from View")
+            # cbox_camera.setDisabled(True)
 
         self.update_textfield_turntablefile(index)
 
@@ -597,6 +638,7 @@ class TurntableDialog(PlayblastDialog):
         self.txt_turntable_filename.setPlaceholderText("Empty - Use internal preset")
         self.btn_browse_turntable = QtWidgets.QPushButton(icon=get_icon("folder"))
         self.btn_browse_turntable.setFixedSize(QtCore.QSize(30, 30))
+        self.btn_browse_turntable.clicked.connect(self._prompt_turntablefile)
 
         turntable_filename_hlayout = QtWidgets.QHBoxLayout()
         turntable_filename_hlayout.addWidget(self.txt_turntable_filename)
