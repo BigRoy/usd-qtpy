@@ -213,6 +213,16 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         self.cbox_camera.setCurrentIndex(0)
         self.formlayout.addRow("Camera",self.cbox_camera)
 
+        self.spinbox_fit = QtWidgets.QDoubleSpinBox()
+        self.spinbox_fit.setMinimum(0.01)
+        self.spinbox_fit.setMaximum(10)
+        self.spinbox_fit.setValue(1.2)
+        self.cbox_camera.currentIndexChanged.connect(self._update_fit)
+        self.lbl_fit = QtWidgets.QLabel()
+        self.lbl_fit.setText("Fit stage:")
+
+        self.formlayout.addRow(self.lbl_fit,self.spinbox_fit)
+
         separator_2 = QtWidgets.QFrame()
         separator_2.setFrameShape(QtWidgets.QFrame.HLine)
         self.formlayout.addWidget(separator_2)
@@ -272,6 +282,14 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         self.progressbar = QtWidgets.QProgressBar(self)
         self.progressbar.setFormat("Not started...")
         self.vlayout.addWidget(self.progressbar)
+
+    def _update_fit(self):
+        if "New: Framing Camera" in self.cbox_camera.currentText():
+            self.spinbox_fit.setDisabled(False)
+            self.lbl_fit.setDisabled(False)
+        else:
+            self.spinbox_fit.setDisabled(True)
+            self.lbl_fit.setDisabled(True)
 
     def _update_resolution(self, res_tuple: tuple[int,int]):
         self.spinbox_horresolution.setValue(res_tuple[0])
@@ -380,6 +398,7 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
             camera = framing_camera.create_framing_camera_in_stage(
                 self._stage,
                 name="Playblast_framingCam",
+                fit=self.spinbox_fit.value(),
                 width=width,
                 height=height
                 )
@@ -623,8 +642,8 @@ class TurntableDialog(PlayblastDialog):
         # Turntable type chooser
         self.cbox_turntable_type = QtWidgets.QComboBox()
         turntable_types = ("Rotate camera",
-                          "Rotate subject",
-                          "Preset from file")
+                           "Rotate subject",
+                           "Preset from file")
         self.cbox_turntable_type.addItems(turntable_types)
         pre_form.addRow("Turntable Type", self.cbox_turntable_type)
         
@@ -652,4 +671,8 @@ class TurntableDialog(PlayblastDialog):
         """
         Prevent playblast button from doing anything for now.
         """
+        ttable_type = self.cbox_turntable_type.currentIndex()
+
+
+
         raise NotImplementedError()
