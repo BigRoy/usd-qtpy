@@ -105,7 +105,7 @@ class EditorWindow(QtWidgets.QWidget):
         # Render menu
         render_menu = menubar.addMenu("Render")
         render_labels = (
-            "Snapshot", "Snapshot Framing Camera",
+            "Snapshot View", "Snapshot Framing Camera",
             "Playblast Stage", "Turntable Stage"
         )
         render_actions = {label: render_menu.addAction(label) for label in render_labels}
@@ -129,20 +129,6 @@ class EditorWindow(QtWidgets.QWidget):
 
         render_snap_with_framingcam = partial(snap_framingcam, self._stage)
 
-        def render_turntable(stage):
-            """Render turntable 'framed camera' rotating around stage center"""
-            filepath = render_util.prompt_output_path("Render turntable")
-            if not filepath:
-                return
-            framecam = render_util.create_turntable_camera(stage)
-            render_util.render_playblast(stage, 
-                                         filepath,
-                                         "0:99", 
-                                         1920, 
-                                         renderer="GL", 
-                                         camera=framecam)
-            stage.RemovePrim(framecam.GetPath())
-
         def show_dialog(this, stage, stageview):
             dialog = render_util.PlayblastDialog(this, stage, stageview)
             dialog.show()
@@ -151,7 +137,7 @@ class EditorWindow(QtWidgets.QWidget):
             dialog = render_util.TurntableDialog(this, stage, stageview)
             dialog.show()
 
-        render_actions["Snapshot"].triggered.connect(render_snap)
+        render_actions["Snapshot View"].triggered.connect(render_snap)
         render_actions["Snapshot Framing Camera"].triggered.connect(render_snap_with_framingcam)
         render_actions["Playblast Stage"].triggered.connect(partial(show_dialog,self,self._stage,self._stageview))
         render_actions["Turntable Stage"].triggered.connect(partial(show_ttable_dialog,self,self._stage,self._stageview))

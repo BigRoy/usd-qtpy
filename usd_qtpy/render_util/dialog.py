@@ -57,7 +57,6 @@ def prompt_output_path(caption="Save frame"):
 
     hash_match = re.search(REGEX_HASH, filename)
     if not hash_match:
-        print("notmatching")
         filename = _rectify_path_framenumberspec(filename)
 
     return filename
