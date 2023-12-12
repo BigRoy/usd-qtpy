@@ -139,8 +139,8 @@ class EditorWindow(QtWidgets.QWidget):
 
         render_actions["Snapshot View"].triggered.connect(render_snap)
         render_actions["Snapshot Framing Camera"].triggered.connect(render_snap_with_framingcam)
-        render_actions["Playblast Stage"].triggered.connect(partial(show_dialog,self,self._stage,self._stageview))
-        render_actions["Turntable Stage"].triggered.connect(partial(show_ttable_dialog,self,self._stage,self._stageview))
+        render_actions["Playblast Stage"].triggered.connect(partial(show_dialog, self, self._stage, self._stageview))
+        render_actions["Turntable Stage"].triggered.connect(partial(show_ttable_dialog, self, self._stage, self._stageview))
 
         layout = self.layout()
         layout.setMenuBar(menubar)

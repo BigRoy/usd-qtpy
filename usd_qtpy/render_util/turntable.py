@@ -145,8 +145,6 @@ def turntable_from_file(stage: Usd.Stage,
                         camera_path : Union[str, Sdf.Path] = None,
                         qt_report_instance: RenderReportable = None):
     """
-    #### STILL UNDER CONSTRUCTION
-
     Generates a turntable from a preset USD file, not unlike Prism.
     
     The turntable must have the following structure:
