@@ -13,11 +13,12 @@ from ..lib import usd
 
 
 def create_turntable_xform(stage: Usd.Stage,
-                           path: Union[Sdf.Path, str], 
+                           path: Union[Sdf.Path, str],
                            name: str = "turntableXform",
                            length: int = 100, 
                            frame_start: int = 0, 
-                           repeats: int = 1) -> UsdGeom.Xform:
+                           repeats: int = 1,
+                           bounds: Gf.Range3d = None) -> UsdGeom.Xform:
     """
     Creates a turntable Xform that contains animation spinning around the up axis, in the center floor of the stage.
     We repeat the entire duration when repeats are given as an arguement.
@@ -32,45 +33,8 @@ def create_turntable_xform(stage: Usd.Stage,
 
     is_z_up = framing_camera.get_stage_up(stage) == "Z"
     
-    bounds = framing_camera.get_stage_boundingbox(stage)
-    centroid = bounds.GetMidpoint()
-
-    xform = UsdGeom.Xform.Define(stage, path)
-
-    if is_z_up:
-        translate = Gf.Vec3d(centroid[0], centroid[1], 0) # Z axis = floor normal
-    else:
-        translate = Gf.Vec3d(centroid[0], 0, centroid[2]) # Y axis = floor normal
-
-    # Move to centroid of bounds, rotate, move back to origin
-    xform.AddTranslateOp(XformOp.PrecisionDouble, "rotPivot").Set(translate)
-    add_turntable_spin_op(xform, length, frame_start, repeats, is_z_up)
-    xform.AddTranslateOp(XformOp.PrecisionDouble, "rotPivot", isInverseOp=True)
-    
-    return xform
-
-def create_turntable_subject_bounds_xform(stage: Usd.Stage,
-                                          bounds: Gf.Range3d,
-                                          path: Union[Sdf.Path, str], 
-                                          name: str = "turntableXform",
-                                          length: int = 100, 
-                                          frame_start: int = 0, 
-                                          repeats: int = 1) -> UsdGeom.Xform:
-    """
-    Creates a turntable Xform that contains animation spinning around the up axis, in the center floor of the stage.
-    We repeat the entire duration when repeats are given as an arguement.
-    A length of 100 with 3 repeats will result in a 300 frame long sequence
-    """
-    from pxr.UsdGeom import XformOp
-    
-    if isinstance(path, str):
-        path = Sdf.Path(path)
-    
-    path = path.AppendPath(name)
-
-    is_z_up = framing_camera.get_stage_up(stage) == "Z"
-    
-    #bounds = framing_camera.get_stage_boundingbox(stage)
+    if bounds is None:
+        bounds = framing_camera.get_stage_boundingbox(stage)
     centroid = bounds.GetMidpoint()
 
     xform = UsdGeom.Xform.Define(stage, path)

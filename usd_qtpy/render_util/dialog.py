@@ -691,7 +691,69 @@ class TurntableDialog(PlayblastDialog):
         ttable_type = self.cbox_turntable_type.currentIndex()
         if ttable_type == 0:
             # Rotate camera around scene
-            ...
+
+            turntable_xform = turntable\
+                              .create_turntable_xform(
+                                  self._stage,
+                                  "/",
+                                  "turntabledialog_xform",
+                                  turn_length,
+                                  frame_start,
+                                  repetition)
+            
+            path: Sdf.Path = self.cbox_camera.currentData()
+            render_camera: UsdGeom.Camera = None
+            cam_name = "turntabledialog_cam"
+            # get camera state, to create a valid camera
+            if path:
+                # take new root into account, split off the old scene root.
+                print("not generated cam",path.pathString)
+                # TODO: support animated cameras from scene?
+                # grab camera state
+                camera_stage = self._stage.GetPrimAtPath(path)
+                camera_geom = UsdGeom.Camera(camera_stage)
+                camera_state = camera_geom.GetCamera(frame_start)
+                render_camera = UsdGeom.Camera.Define(
+                    self._stage,
+                    f"/turntabledialog_xform/{cam_name}")
+            else:
+                if "New: Framing Camera" in self.cbox_camera.currentText():
+                    render_camera = framing_camera\
+                        .create_framing_camera_in_stage(self._stage,
+                                                        "/turntabledialog_xform",
+                                                        cam_name,
+                                                        fit,
+                                                        width,
+                                                        height
+                                                        )
+                    
+                elif "New: Camera from View" in self.cbox_camera.currentText():
+                    cam = playblast.camera_from_stageview(
+                                            self._stage,
+                                            self._stageview,
+                                            f"viewcam")
+                    camera_state = cam.GetCamera(frame_start)
+                    render_camera = UsdGeom.Camera.Define(
+                                        self._stage,
+                                        f"/turntabledialog_xform/{cam_name}")
+                    self._stage.RemovePrim(cam.GetPath())
+
+            render_camera = framing_camera.camera_conform_sensor_to_aspect(
+                                            render_camera,
+                                            width,
+                                            height)
+            
+            playblast.render_playblast(self._stage,
+                                       render_path,
+                                       frames=frames_string,
+                                       width=width,
+                                       camera=render_camera,
+                                       renderer=render_engine,
+                                       qt_report_instance=self)
+            
+            self._stage.RemovePrim(render_camera.GetPath())
+            
+            self.progressbar.setFormat("Rendered %v frames!")
         elif ttable_type == 1:
             # Create temporary stage where the entire stage rotates in front 
             # of a camera
@@ -702,7 +764,6 @@ class TurntableDialog(PlayblastDialog):
 
             # collect info about subject
             subject_upaxis = framing_camera.get_stage_up(self._stage)
-            subject_zup = subject_upaxis == "Z"
 
             # export subject
             subject_filename = R"./temp/subject.usda"
@@ -717,14 +778,14 @@ class TurntableDialog(PlayblastDialog):
 
             # Put stage in turntable primitive.
             turntable_xform = turntable\
-                              .create_turntable_subject_bounds_xform(
+                              .create_turntable_xform(
                                   assemble_stage,
-                                  bounds,
                                   "/",
                                   "turntabledialog_xform",
                                   turn_length,
                                   frame_start,
-                                  repetition)
+                                  repetition,
+                                  bounds)
             # reference root in stage
             root_override= assemble_stage\
                             .OverridePrim("/turntabledialog_xform/root")
@@ -804,7 +865,7 @@ class TurntableDialog(PlayblastDialog):
             os.remove(real_stage_filename)
 
             self.progressbar.setFormat("Rendered %v frames!")
-            
+
         elif ttable_type == 2:
             # turntable from file routine.
             ...
