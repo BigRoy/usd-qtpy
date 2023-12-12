@@ -140,6 +140,8 @@ def turntable_from_file(stage: Usd.Stage,
                         length: int = 100,
                         frame_start: int = 1,
                         repeats: int = 1,
+                        width: int = 16,
+                        height: int = 9,
                         camera_path : Union[str, Sdf.Path] = None,
                         qt_report_instance: RenderReportable = None):
     """
@@ -311,6 +313,11 @@ def turntable_from_file(stage: Usd.Stage,
 
     turntable_camera = next(playblast.iter_stage_cameras(realstage),None)
     turntable_camera = UsdGeom.Camera(turntable_camera)
+    turntable_camera = framing_camera.camera_conform_sensor_to_aspect(
+        turntable_camera,
+        width,
+        height
+    )
 
     playblast.render_playblast(realstage,
                                render_path,

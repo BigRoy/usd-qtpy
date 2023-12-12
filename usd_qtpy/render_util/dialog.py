@@ -689,6 +689,8 @@ class TurntableDialog(PlayblastDialog):
         render_path = self.txt_filename.text()
         render_engine = self.cbox_renderer.currentText()
 
+        turntable_file = self.txt_turntable_filename.text()
+
         ttable_type = self.cbox_turntable_type.currentIndex()
         if ttable_type == 0:
             # Rotate camera around scene
@@ -870,8 +872,19 @@ class TurntableDialog(PlayblastDialog):
             self.progressbar.setFormat("Rendered %v frames!")
 
         elif ttable_type == 2:
-            # turntable from file routine.
-            ...
+            turntable.turntable_from_file(self._stage,
+                                          self._turntablefile,
+                                          render_path,
+                                          render_engine,
+                                          turn_length,
+                                          frame_start,
+                                          repetition,
+                                          width,
+                                          height,
+                                          self.cbox_camera.currentData(),
+                                          self
+                                          )
+            self.progressbar.setFormat("Rendered %v frames!")
 
 
         # raise NotImplementedError()
