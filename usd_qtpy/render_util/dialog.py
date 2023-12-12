@@ -30,7 +30,7 @@ def _rectify_path_framenumberspec(path: str, padding: int =  4):
     base, file = os.path.split(path)
     file, extension = os.path.splitext(file)
     # if too little hashes were present, remove them.
-    file.replace("#", "")
+    file = file.replace("#", "")
     file += "#" * padding
 
     return os.path.join(base, file + extension)
@@ -55,8 +55,9 @@ def prompt_output_path(caption="Save frame"):
     # ensure there's at least two or more hashes, if not, put in 4.
     REGEX_HASH = r"(#{2,})"
 
-    hash_match = re.match(REGEX_HASH, filename)
+    hash_match = re.search(REGEX_HASH, filename)
     if not hash_match:
+        print("notmatching")
         filename = _rectify_path_framenumberspec(filename)
 
     return filename
@@ -733,10 +734,11 @@ class TurntableDialog(PlayblastDialog):
                                             self._stageview,
                                             f"viewcam")
                     camera_state = cam.GetCamera(frame_start)
+                    self._stage.RemovePrim(cam.GetPath())
                     render_camera = UsdGeom.Camera.Define(
                                         self._stage,
                                         f"/turntabledialog_xform/{cam_name}")
-                    self._stage.RemovePrim(cam.GetPath())
+                    render_camera.SetFromCamera(camera_state)
 
             render_camera = framing_camera.camera_conform_sensor_to_aspect(
                                             render_camera,
@@ -752,7 +754,8 @@ class TurntableDialog(PlayblastDialog):
                                        qt_report_instance=self)
             
             self._stage.RemovePrim(render_camera.GetPath())
-            
+            self._stage.RemovePrim(turntable_xform.GetPath())
+
             self.progressbar.setFormat("Rendered %v frames!")
         elif ttable_type == 1:
             # Create temporary stage where the entire stage rotates in front 
