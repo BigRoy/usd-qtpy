@@ -10,7 +10,7 @@ from qtpy import QtCore
 from pxr import Tf, Sdf, Usd, UsdGeom, UsdAppUtils
 from pxr.Usdviewq.stageView import StageView
 
-from . import dialog
+from .basecls import RenderReportable
 
 def _setup_opengl_widget(width: int, height: int, samples: int = 4):
     """
@@ -178,7 +178,7 @@ def render_playblast(stage: Usd.Stage,
                      renderer: str = None,
                      colormode: str = "sRGB",
                      purposes: list[str] = None,
-                     qt_report_instance: dialog.RenderReportable = None
+                     qt_report_instance: RenderReportable = None
                      ) -> list[str]:
     """
     Render one or multiple frames from a usd stage's camera.

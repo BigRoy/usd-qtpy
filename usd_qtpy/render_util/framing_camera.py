@@ -78,6 +78,29 @@ def create_perspective_camera_in_stage(stage: Usd.Stage,
     return camera
 
 
+def camera_conform_sensor_to_aspect(camera: UsdGeom.Camera,
+                                   width: int = 16,
+                                   height: int = 9) -> UsdGeom.Camera:
+    """
+    Conforms an existing camera's sensor size to render with desired dimensions
+    """
+    
+    aspect_ratio: float = width / float(height) 
+
+    # Focus at infinity
+    camera.CreateFocusDistanceAttr(168.60936)
+    camera.CreateFStopAttr(0)
+    
+    # Aperture size (24) is based on the size of a full frame SLR camera sensor
+    # https://en.wikipedia.org/wiki/Image_sensor_format#Common_image_sensor_formats
+    camera.CreateHorizontalApertureAttr(24 * aspect_ratio)
+    camera.CreateHorizontalApertureOffsetAttr(0)
+    camera.CreateVerticalApertureAttr(24)
+    camera.CreateVerticalApertureOffsetAttr(0)
+
+    return camera
+
+
 def _orient_to_z_up(xformable: UsdGeom.Xformable):
     """Rotate around X-axis by 90 degrees to orient for Z-up axis."""
     xformable.AddRotateXOp(UsdGeom.XformOp.PrecisionDouble).Set(90)

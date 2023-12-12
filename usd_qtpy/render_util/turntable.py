@@ -6,7 +6,8 @@ import os
 from pxr import Usd, UsdGeom, Sdf, Gf
 from qtpy import QtCore
 
-from . import framing_camera, playblast, dialog
+from . import framing_camera, playblast
+from .basecls import RenderReportable
 from ..layer_editor import LayerTreeWidget, LayerStackModel
 from ..lib import usd
 
@@ -32,6 +33,44 @@ def create_turntable_xform(stage: Usd.Stage,
     is_z_up = framing_camera.get_stage_up(stage) == "Z"
     
     bounds = framing_camera.get_stage_boundingbox(stage)
+    centroid = bounds.GetMidpoint()
+
+    xform = UsdGeom.Xform.Define(stage, path)
+
+    if is_z_up:
+        translate = Gf.Vec3d(centroid[0], centroid[1], 0) # Z axis = floor normal
+    else:
+        translate = Gf.Vec3d(centroid[0], 0, centroid[2]) # Y axis = floor normal
+
+    # Move to centroid of bounds, rotate, move back to origin
+    xform.AddTranslateOp(XformOp.PrecisionDouble, "rotPivot").Set(translate)
+    add_turntable_spin_op(xform, length, frame_start, repeats, is_z_up)
+    xform.AddTranslateOp(XformOp.PrecisionDouble, "rotPivot", isInverseOp=True)
+    
+    return xform
+
+def create_turntable_subject_bounds_xform(stage: Usd.Stage,
+                                          bounds: Gf.Range3d,
+                                          path: Union[Sdf.Path, str], 
+                                          name: str = "turntableXform",
+                                          length: int = 100, 
+                                          frame_start: int = 0, 
+                                          repeats: int = 1) -> UsdGeom.Xform:
+    """
+    Creates a turntable Xform that contains animation spinning around the up axis, in the center floor of the stage.
+    We repeat the entire duration when repeats are given as an arguement.
+    A length of 100 with 3 repeats will result in a 300 frame long sequence
+    """
+    from pxr.UsdGeom import XformOp
+    
+    if isinstance(path, str):
+        path = Sdf.Path(path)
+    
+    path = path.AppendPath(name)
+
+    is_z_up = framing_camera.get_stage_up(stage) == "Z"
+    
+    #bounds = framing_camera.get_stage_boundingbox(stage)
     centroid = bounds.GetMidpoint()
 
     xform = UsdGeom.Xform.Define(stage, path)
@@ -113,8 +152,10 @@ def pack_stage_root_to_prim(stage: Usd.Stage, goal_prim: Usd.Prim):
     Move children of stage root to a primitive.
     """
     stage_root = stage.GetPseudoRoot()
-    children: list[Usd.Prim] = list(stage_root.GetAllChildren())
-        
+    children: list[Usd.Prim] = list(stage_root.GetChildren())
+    # filter children
+    children = [c for c in children 
+                if not c.GetPath().pathString == goal_prim.GetPath().pathString]
     usd.parent_prims(children, goal_prim.GetPath())
 
 
@@ -124,7 +165,7 @@ def unpack_prim_to_stage_root(stage: Usd.Stage, from_prim: Usd.Prim):
     """
     stage_root = stage.GetPseudoRoot()
     children: list[Usd.Prim] = list(from_prim.GetAllChildren())
-    
+
     usd.parent_prims(children,stage_root.GetPath())
 
 
@@ -136,7 +177,7 @@ def turntable_from_file(stage: Usd.Stage,
                         frame_start: int = 1,
                         repeats: int = 1,
                         camera_path : Union[str, Sdf.Path] = None,
-                        qt_report_instance: dialog.RenderReportable = None):
+                        qt_report_instance: RenderReportable = None):
     """
     #### STILL UNDER CONSTRUCTION
 
@@ -289,7 +330,7 @@ def turntable_from_file(stage: Usd.Stage,
         if lights_prim.IsValid():
             lights_prim.GetAttribute("visibility").Set("invisible",0)
 
-    realstage_filename = R"./temp/test_turntable_fit.usd"
+    realstage_filename = R"./temp/turntable_assembly.usd"
     realstage_filename = os.path.abspath(realstage_filename)
 
     ttable_stage.Export(realstage_filename)

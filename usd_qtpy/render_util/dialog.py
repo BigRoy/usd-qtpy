@@ -9,8 +9,10 @@ from qtpy import QtWidgets, QtCore
 from pxr import Usd, UsdGeom, Sdf
 from pxr.Usdviewq.stageView import StageView
 
-from . import playblast, framing_camera
+from . import playblast, framing_camera, turntable
+from .basecls import RenderReportable
 from ..resources import get_icon
+from ..lib import usd
 
 
 def _rectify_path_framenumberspec(path: str, padding: int =  4):
@@ -96,14 +98,6 @@ def _savepicture_dialog(stage: Usd.Stage,
                                camera=camera)
 
     stage.RemovePrim(camera.GetPath())
-
-
-class RenderReportable:
-    """
-    Mixin class to set up signals for everything needing slots.
-    """
-    render_progress: QtCore.Signal = QtCore.Signal(int)
-    total_frames: QtCore.Signal = QtCore.Signal(int)
 
 
 class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
@@ -592,13 +586,14 @@ class TurntableDialog(PlayblastDialog):
                 cam: UsdGeom.Camera
                 campath = cam.GetPath().pathString
                 cam_name = os.path.basename(campath)
-                cbox_camera.addItem(f"Cam: {cam_name}", cam_name)
+                cbox_camera.addItem(f"Cam: {cam_name}", Sdf.Path(campath))
 
             cbox_camera.addItem("New: Framing Camera")
             if self._has_viewer:
                 cbox_camera.addItem("New: Camera from View")
             # cbox_camera.setDisabled(True)
 
+        cbox_camera.setCurrentIndex(0)
         self.update_textfield_turntablefile(index)
 
     def update_textfield_turntablefile(self, index: int = 0):
@@ -635,8 +630,8 @@ class TurntableDialog(PlayblastDialog):
         formlayout.addRow("Starting Frame / Length", framerange_hlayout)
 
         self.spinbox_loops = QtWidgets.QSpinBox()
-        self.spinbox_frame_length.setMinimum(1)
-        self.spinbox_frame_length.setMaximum(99)
+        self.spinbox_loops.setMinimum(1)
+        self.spinbox_loops.setMaximum(99)
         formlayout.addRow("Repetitions", self.spinbox_loops)
 
     def ui_pre_hook(self, vlayout: QtWidgets.QVBoxLayout):
@@ -676,21 +671,143 @@ class TurntableDialog(PlayblastDialog):
         """
         Prevent playblast button from doing anything for now.
         """
+        turn_length = self.spinbox_frame_length.value()
+        frame_start = self.spinbox_frame_start.value()
+        repetition = self.spinbox_loops.value()
+
+        frames_string = turntable.get_turntable_frames_string(
+            turn_length,
+            frame_start,
+            repetition
+        )
+
+        fit = self.spinbox_fit.value()
+        width = self.spinbox_horresolution.value()
+        height = self.spinbox_verresolution.value()
+
+        render_path = self.txt_filename.text()
+        render_engine = self.cbox_renderer.currentText()
+
         ttable_type = self.cbox_turntable_type.currentIndex()
         if ttable_type == 0:
             # Rotate camera around scene
             ...
         elif ttable_type == 1:
-            # Group scene into Xform temporarily,
-            # make the Xform spin,
-            # generate framing camera
-            # render
-            # ungroup from Xform
-            # remove framing camera and temp root Xform
-            ...
+            # Create temporary stage where the entire stage rotates in front 
+            # of a camera
+
+            # make temporary folder to cache current subject session to.
+            if not os.path.isdir("./temp"):
+                os.mkdir("./temp")
+
+            # collect info about subject
+            subject_upaxis = framing_camera.get_stage_up(self._stage)
+            subject_zup = subject_upaxis == "Z"
+
+            # export subject
+            subject_filename = R"./temp/subject.usda"
+            subject_filename = os.path.abspath(subject_filename)
+
+            self._stage.Export(subject_filename)
+            
+            assemble_stage = Usd.Stage.CreateInMemory()
+            UsdGeom.SetStageUpAxis(assemble_stage,subject_upaxis)
+
+            bounds = framing_camera.get_stage_boundingbox(self._stage)
+
+            # Put stage in turntable primitive.
+            turntable_xform = turntable\
+                              .create_turntable_subject_bounds_xform(
+                                  assemble_stage,
+                                  bounds,
+                                  "/",
+                                  "turntabledialog_xform",
+                                  turn_length,
+                                  frame_start,
+                                  repetition)
+            # reference root in stage
+            root_override= assemble_stage\
+                            .OverridePrim("/turntabledialog_xform/root")
+            root_override.GetReferences().AddReference(subject_filename)
+
+            path: Sdf.Path = self.cbox_camera.currentData()
+            camera_state = None
+            
+            # get camera states, to create a valid camera in in-memory stage.
+
+            if path:
+                # take new root into account, split off the old scene root.
+                print("not generated cam",path.pathString)
+                # TODO: support animated cameras from scene?
+                # grab camera state
+                camera_stage = self._stage.GetPrimAtPath(path)
+                camera_geom = UsdGeom.Camera(camera_stage)
+                camera_state = camera_geom.GetCamera(frame_start)
+            else:
+                if "New: Framing Camera" in self.cbox_camera.currentText():
+                    cam = framing_camera\
+                        .create_framing_camera_in_stage(self._stage,
+                                                        "/",
+                                                        "framingcam",
+                                                        fit,
+                                                        width,
+                                                        height
+                                                        )
+                    camera_state = cam.GetCamera(frame_start)
+                    self._stage.RemovePrim(cam.GetPath())
+                elif "New: Camera from View" in self.cbox_camera.currentText():
+                    cam = playblast.camera_from_stageview(self._stage,
+                                                          self._stageview,
+                                                          "viewcam")
+                    camera_state = cam.GetCamera(frame_start)
+                    self._stage.RemovePrim(cam.GetPath())
+            
+            render_camera: UsdGeom.Camera = None
+            render_camera_name = "turntabledialog_cam"
+            
+            # use camera state to generate proper camera in assemble_stage
+            render_camera = UsdGeom.Camera\
+                .Define(assemble_stage,f"/{render_camera_name}")
+            render_camera.SetFromCamera(camera_state)
+
+            render_camera = framing_camera.camera_conform_sensor_to_aspect(
+                render_camera,
+                width,
+                height
+            )
+
+            # We should now have an assembled stage.
+
+            real_stage_filename = R"./temp/turntable_assembly.usd"
+            real_stage_filename = os.path.abspath(real_stage_filename)
+
+            assemble_stage.Export(real_stage_filename)
+            del assemble_stage
+
+            real_stage = Usd.Stage.Open(real_stage_filename)
+            render_camera = real_stage.GetPrimAtPath(f"/{render_camera_name}")
+            render_camera = UsdGeom.Camera(render_camera)
+
+            playblast.render_playblast(real_stage,
+                                       render_path,
+                                       frames=frames_string,
+                                       width=width,
+                                       camera=render_camera,
+                                       renderer=render_engine,
+                                       qt_report_instance=self)
+
+            # cleanup
+            # unload real_stage from memory forcibly so file can be deleted.
+            del real_stage
+
+            os.remove(subject_filename)
+            os.remove(real_stage_filename)
+
+            self.progressbar.setFormat("Rendered %v frames!")
+            
         elif ttable_type == 2:
             # turntable from file routine.
             ...
 
 
-        raise NotImplementedError()
+        # raise NotImplementedError()
