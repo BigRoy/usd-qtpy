@@ -2,11 +2,16 @@
 
 from typing import Union
 import os
+from contextlib import ExitStack
 
 from pxr import Usd, UsdGeom, Sdf, Gf
 
 from . import framing_camera, playblast
-from .base import RenderReportable, get_tempfolder, using_tempfolder
+from .base import (RenderReportable, 
+                   TempStageOpen,
+                   defer_file_deletion,
+                   get_tempfolder, 
+                   using_tempfolder)
 
 
 def create_turntable_xform(stage: Usd.Stage,
@@ -281,29 +286,28 @@ def turntable_from_file(stage: Usd.Stage,
 
     print("Rendering",frames_string,render_path)
 
-    realstage = Usd.Stage.Open(realstage_filename)
+    # create an exit stack that will neatly clean up all the things in order.
+    with ExitStack() as stack:
+        # enter stage context, and also enter context for deferring
+        # subject file to be deleted.
+        realstage = stack.enter_context(TempStageOpen(realstage_filename, True))
+        stack.enter_context(defer_file_deletion(subject_filename))
 
-    turntable_camera = next(playblast.iter_stage_cameras(realstage),None)
-    turntable_camera = UsdGeom.Camera(turntable_camera)
-    turntable_camera = framing_camera.camera_conform_sensor_to_aspect(
-        turntable_camera,
-        width,
-        height
-    )
+        turntable_camera = next(playblast.iter_stage_cameras(realstage),None)
+        turntable_camera = UsdGeom.Camera(turntable_camera)
+        turntable_camera = framing_camera.camera_conform_sensor_to_aspect(
+            turntable_camera,
+            width,
+            height
+        )
 
-    playblast.render_playblast(realstage,
-                               render_path,
-                               frames=frames_string,
-                               width=1920,
-                               camera=turntable_camera,
-                               renderer=renderer,
-                               qt_report_instance=qt_report_instance)
-    
-    # explicitly free scene to make composite file available for deletion
-    del realstage
-
-    os.remove(subject_filename)
-    os.remove(realstage_filename)
+        playblast.render_playblast(realstage,
+                                   render_path,
+                                   frames=frames_string,
+                                   width=width,
+                                   camera=turntable_camera,
+                                   renderer=renderer,
+                                   qt_report_instance=qt_report_instance)
 
 
 def file_is_zup(path: str) -> bool:
@@ -315,16 +319,15 @@ def get_file_timerange_as_string(path: str) -> str:
     """
     Attempt to get timerange from a USD file.
     """
-    stage = Usd.Stage.Open(path)
+    start = 0
+    end = 100
 
-    if stage.HasAuthoredTimeCodeRange():
-        start = int(stage.GetStartTimeCode())
-        end = int(stage.GetEndTimeCode())
-    else:
-        print("No Timecode found")
-        start = 0
-        end = 100
+    with TempStageOpen(path) as stage:
 
-    del stage
+        if stage.HasAuthoredTimeCodeRange():
+            start = int(stage.GetStartTimeCode())
+            end = int(stage.GetEndTimeCode())
+        else:
+            print("No Timecode found")
 
     return playblast.get_frames_string(start,end)

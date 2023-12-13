@@ -1,9 +1,11 @@
 # Provides mixins and classes to be inherited from, as well as decorators
 import os
+from contextlib import contextmanager
 from functools import wraps
 from typing import Callable
 
 from qtpy import QtCore
+from pxr import Usd
 
 TEMPFOLDER = "./temp"
 
@@ -13,7 +15,8 @@ def get_tempfolder() -> str:
     """
     return TEMPFOLDER
 
-def using_tempfolder(func):
+
+def using_tempfolder(func: Callable):
     """
     Decorator to indicate use of temporary folder, 
     so that it may be cleaned up after.
@@ -38,7 +41,30 @@ def using_tempfolder(func):
     return wrapper
 
 
+@contextmanager
+def defer_file_deletion(path: str):
+    try:
+        pass
+    finally:
+        os.remove(path)
 
+
+class TempStageOpen:
+    """
+    Context manager for Usd.Stage that needs to temporarily be open.
+    """
+    def __init__(self, path: str, remove_file: bool = False):
+        self._stage = Usd.Stage.Open(path)
+        self._remove_file = remove_file
+        self._path = path
+
+    def __enter__(self) -> Usd.Stage:
+        return self._stage
+    
+    def __exit__(self, type, value, traceback):
+        del self._stage
+        if self._remove_file:
+            os.remove(self._path)
 
 
 class RenderReportable:
