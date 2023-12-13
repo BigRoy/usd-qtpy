@@ -3,7 +3,6 @@ import os
 from contextlib import contextmanager
 from functools import wraps
 from typing import Callable, Union
-import weakref
 
 from qtpy import QtCore
 from pxr import Usd, Sdf
