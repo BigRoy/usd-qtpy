@@ -4,13 +4,20 @@ import os
 import re
 from typing import Any
 from functools import partial
+from contextlib import ExitStack
 
 from qtpy import QtWidgets, QtCore
 from pxr import Usd, UsdGeom, Sdf
 from pxr.Usdviewq.stageView import StageView
 
 from . import playblast, framing_camera, turntable
-from .base import RenderReportable, get_tempfolder, using_tempfolder
+from .base import (RenderReportable,
+                   TempStageOpen,
+                   get_tempfolder,
+                   using_tempfolder, 
+                   defer_primpath_deletion,
+                   defer_file_deletion,
+                   defer_object_deletion)
 from ..resources import get_icon
 
 REGEX_HASH = re.compile(r"(#{2,})")
@@ -429,38 +436,47 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
             return camera, True
         
         return None, False
+    
+    class _CameraContext:
+        def __init__(self, parent):
+            self._camera: UsdGeom.Camera
+            self._camera, self._delete = parent._get_camera()
+            self._parent = parent
+
+        def __enter__(self) -> UsdGeom.Camera:
+            return self._camera
+        
+        def __exit__(self, *args):
+            if self._delete:
+                self._parent._stage.RemovePrim(self._camera.GetPath())
+
 
     def playblast_callback(self):
         frames = self._construct_frames_argument()
-        camera, should_destroy = self._get_camera()
+        with self._CameraContext(self) as camera:
+            path = self.txt_filename.text()
 
-        path = self.txt_filename.text()
+            if not path:
+                return
 
-        if not path:
-            return
+            width = self.spinbox_horresolution.value()
+            complexity = self.cbox_complexity.currentText()
+            render_engine = self.cbox_renderer.currentText()
+            purposes = self._gather_purposes()
 
-        width = self.spinbox_horresolution.value()
-        complexity = self.cbox_complexity.currentText()
-        render_engine = self.cbox_renderer.currentText()
-        purposes = self._gather_purposes()
+            playblast.render_playblast(stage=self._stage,
+                                       outputpath=path,
+                                       frames=frames,
+                                       width=width,
+                                       camera=camera,
+                                       complexity=complexity,
+                                       renderer=render_engine,
+                                       colormode="sRGB",
+                                       purposes=purposes,
+                                       qt_report_instance=self
+                                       )
 
-        playblast.render_playblast(stage=self._stage,
-                                   outputpath=path,
-                                   frames=frames,
-                                   width=width,
-                                   camera=camera,
-                                   complexity=complexity,
-                                   renderer=render_engine,
-                                   colormode="sRGB",
-                                   purposes=purposes,
-                                   qt_report_instance=self
-                                   )
-        
-        self.progressbar.setFormat("Rendered %v frames!")
-
-        # cleanup camera if needed
-        if should_destroy:
-            self._stage.RemovePrim(camera.GetPath())
+            self.progressbar.setFormat("Rendered %v frames!")
 
     def frame_range_callback(self, formlayout: QtWidgets.QFormLayout):
         """
@@ -695,7 +711,7 @@ class TurntableDialog(PlayblastDialog):
 
     def playblast_callback(self):
         """
-        Prevent playblast button from doing anything for now.
+        Turntable playblast!
         """
         turn_length = self.spinbox_frame_length.value()
         frame_start = self.spinbox_frame_start.value()
@@ -713,8 +729,6 @@ class TurntableDialog(PlayblastDialog):
 
         render_path = self.txt_filename.text()
         render_engine = self.cbox_renderer.currentText()
-
-        turntable_file = self.txt_turntable_filename.text()
 
         ttable_type = self.cbox_turntable_type.currentIndex()
         if ttable_type == 0:
@@ -770,17 +784,19 @@ class TurntableDialog(PlayblastDialog):
                                             render_camera,
                                             width,
                                             height)
-            
-            playblast.render_playblast(self._stage,
-                                       render_path,
-                                       frames=frames_string,
-                                       width=width,
-                                       camera=render_camera,
-                                       renderer=render_engine,
-                                       qt_report_instance=self)
-            
-            self._stage.RemovePrim(render_camera.GetPath())
-            self._stage.RemovePrim(turntable_xform.GetPath())
+            with ExitStack() as stack:
+                stack.enter_context(defer_primpath_deletion(
+                    self._stage, render_camera.GetPath()))
+                stack.enter_context(defer_primpath_deletion(
+                    self._stage, turntable_xform.GetPath()))
+                
+                playblast.render_playblast(self._stage,
+                                           render_path,
+                                           frames=frames_string,
+                                           width=width,
+                                           camera=render_camera,
+                                           renderer=render_engine,
+                                           qt_report_instance=self)
 
             self.progressbar.setFormat("Rendered %v frames!")
         elif ttable_type == 1:
@@ -829,90 +845,99 @@ class TurntableDialog(PlayblastDialog):
                 camera_state = None
 
                 # get camera states, to create a valid camera in in-memory stage.
+                with ExitStack() as stack:
+                    stack.enter_context(defer_object_deletion(assemble_stage))
+                    stack.enter_context(defer_file_deletion(subject_filename))
+                    
+                    if path:
+                        # take new root into account, split off the old scene root.
+                        # TODO: support animated cameras from scene?
+                        # grab camera state
+                        camera_stage = self._stage.GetPrimAtPath(path)
+                        camera_geom = UsdGeom.Camera(camera_stage)
+                        camera_state = camera_geom.GetCamera(frame_start)
+                    else:
+                        if "New: Framing Camera" in self.cbox_camera.currentText():
+                            cam = framing_camera\
+                                .create_framing_camera_in_stage(self._stage,
+                                                                "/",
+                                                                "framingcam",
+                                                                fit,
+                                                                width,
+                                                                height
+                                                                )
+                            camera_state = cam.GetCamera(frame_start)
+                            # immediatly remove here, because we can.
+                            self._stage.RemovePrim(cam.GetPath())
+                        elif "New: Camera from View" in self.cbox_camera.currentText():
+                            cam = playblast.camera_from_stageview(self._stage,
+                                                                  self._stageview,
+                                                                  "viewcam")
+                            camera_state = cam.GetCamera(frame_start)
+                            # immediatly remove here, because we can.
+                            self._stage.RemovePrim(cam.GetPath())
 
-                if path:
-                    # take new root into account, split off the old scene root.
-                    # TODO: support animated cameras from scene?
-                    # grab camera state
-                    camera_stage = self._stage.GetPrimAtPath(path)
-                    camera_geom = UsdGeom.Camera(camera_stage)
-                    camera_state = camera_geom.GetCamera(frame_start)
-                else:
-                    if "New: Framing Camera" in self.cbox_camera.currentText():
-                        cam = framing_camera\
-                            .create_framing_camera_in_stage(self._stage,
-                                                            "/",
-                                                            "framingcam",
-                                                            fit,
-                                                            width,
-                                                            height
-                                                            )
-                        camera_state = cam.GetCamera(frame_start)
-                        self._stage.RemovePrim(cam.GetPath())
-                    elif "New: Camera from View" in self.cbox_camera.currentText():
-                        cam = playblast.camera_from_stageview(self._stage,
-                                                              self._stageview,
-                                                              "viewcam")
-                        camera_state = cam.GetCamera(frame_start)
-                        self._stage.RemovePrim(cam.GetPath())
+                    render_camera: UsdGeom.Camera = None
+                    render_camera_name = "turntabledialog_cam"
 
-                render_camera: UsdGeom.Camera = None
-                render_camera_name = "turntabledialog_cam"
+                    # use camera state to generate proper camera in assemble_stage
+                    render_camera = UsdGeom.Camera\
+                        .Define(assemble_stage,f"/{render_camera_name}")
+                    
+                    # Defer deletion of render camera defined from data
+                    stack.enter_context(
+                        defer_primpath_deletion(self._stage, 
+                                                render_camera.GetPath()))
 
-                # use camera state to generate proper camera in assemble_stage
-                render_camera = UsdGeom.Camera\
-                    .Define(assemble_stage,f"/{render_camera_name}")
-                render_camera.SetFromCamera(camera_state)
+                    render_camera.SetFromCamera(camera_state)
 
-                render_camera = framing_camera.camera_conform_sensor_to_aspect(
-                    render_camera,
-                    width,
-                    height
-                )
+                    render_camera = framing_camera.camera_conform_sensor_to_aspect(
+                        render_camera,
+                        width,
+                        height
+                    )
 
-                # We should now have an assembled stage.
+                    # We should now have an assembled stage.
 
-                realstage_filename = R"turntable_assembly.usd"
-                realstage_filename = os.path.join(tempfolder, realstage_filename)
-                real_stage_filename = os.path.abspath(real_stage_filename)
+                    realstage_filename = R"turntable_assembly.usd"
+                    realstage_filename = os.path.join(tempfolder, realstage_filename)
+                    real_stage_filename = os.path.abspath(real_stage_filename)
 
-                assemble_stage.Export(real_stage_filename)
-                del assemble_stage
+                    assemble_stage.Export(real_stage_filename)
 
-                real_stage = Usd.Stage.Open(real_stage_filename)
-                render_camera = real_stage.GetPrimAtPath(f"/{render_camera_name}")
-                render_camera = UsdGeom.Camera(render_camera)
+                    real_stage = stack.enter_context(TempStageOpen(real_stage_filename,True))
+                    real_render_camera = real_stage.GetPrimAtPath(f"/{render_camera_name}")
+                    real_render_camera = UsdGeom.Camera(real_render_camera)
 
-                playblast.render_playblast(real_stage,
-                                           render_path,
-                                           frames=frames_string,
-                                           width=width,
-                                           camera=render_camera,
-                                           renderer=render_engine,
-                                           qt_report_instance=self)
+                    # defer real stage camera deletion
+                    stack.enter_context(
+                        defer_primpath_deletion(real_stage,
+                                                real_render_camera.GetPath()))
 
-                # cleanup
-                # unload real_stage from memory forcibly so file can be deleted.
-                del real_stage
-
-                os.remove(subject_filename)
-                os.remove(real_stage_filename)
+                    playblast.render_playblast(real_stage,
+                                               render_path,
+                                               frames=frames_string,
+                                               width=width,
+                                               camera=render_camera,
+                                               renderer=render_engine,
+                                               qt_report_instance=self)
             
             routine_rotate_subject() #IIFE ;)
 
             self.progressbar.setFormat("Rendered %v frames!")
 
         elif ttable_type == 2:
+            camera_path = self.cbox_camera.currentData()
             turntable.turntable_from_file(self._stage,
                                           self._turntablefile,
-                                          render_path,
-                                          render_engine,
-                                          turn_length,
-                                          frame_start,
-                                          repetition,
-                                          width,
-                                          height,
-                                          self.cbox_camera.currentData(),
-                                          self
+                                          export_path=render_path,
+                                          renderer=render_engine,
+                                          length=turn_length,
+                                          frame_start=frame_start,
+                                          repeats=repetition,
+                                          width=width,
+                                          height=height,
+                                          camera_path=camera_path,
+                                          qt_report_instance=self
                                           )
             self.progressbar.setFormat("Rendered %v frames!")

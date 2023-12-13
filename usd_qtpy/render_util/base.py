@@ -2,10 +2,10 @@
 import os
 from contextlib import contextmanager
 from functools import wraps
-from typing import Callable
+from typing import Callable, Union
 
 from qtpy import QtCore
-from pxr import Usd
+from pxr import Usd, Sdf
 
 TEMPFOLDER = "./temp"
 
@@ -48,6 +48,24 @@ def defer_file_deletion(path: str):
     finally:
         os.remove(path)
 
+
+@contextmanager
+def defer_primpath_deletion(stage: Usd.Stage, path: Union[str, Sdf.Path]):
+    if isinstance(path, str):
+        path = Sdf.Path(path)
+    try:
+        pass
+    finally:
+        stage.RemovePrim(path)
+
+
+@contextmanager
+def defer_object_deletion(object):
+    try:
+        pass
+    finally:
+        del object
+        
 
 class TempStageOpen:
     """
