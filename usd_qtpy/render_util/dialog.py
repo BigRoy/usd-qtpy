@@ -16,8 +16,7 @@ from .base import (RenderReportable,
                    get_tempfolder,
                    using_tempfolder, 
                    defer_primpath_deletion,
-                   defer_file_deletion,
-                   defer_object_deletion)
+                   defer_file_deletion)
 from ..resources import get_icon
 
 REGEX_HASH = re.compile(r"(#{2,})")
@@ -423,7 +422,7 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
                 height=height
                 )
             return camera, True
-        elif "New: Framing Camera" in box_text:
+        elif "New: Camera from View" in box_text:
             camera = playblast.camera_from_stageview(self._stage, self._stageview, "Playblast_viewerCam")
             # ensure camera aspect ratio
             # Aperture size (24) is based on the size of a full frame SLR camera sensor
@@ -632,7 +631,7 @@ class TurntableDialog(PlayblastDialog):
 
             cbox_camera.addItem("New: Framing Camera")
             if self._has_viewer:
-                cbox_camera.addItem("New: Framing Camera")
+                cbox_camera.addItem("New: Camera from View")
             # cbox_camera.setDisabled(True)
 
         cbox_camera.setCurrentIndex(0)
@@ -846,9 +845,6 @@ class TurntableDialog(PlayblastDialog):
 
                 # get camera states, to create a valid camera in in-memory stage.
                 with ExitStack() as stack:
-                    stack.enter_context(defer_object_deletion(assemble_stage))
-                    stack.enter_context(defer_file_deletion(subject_filename))
-                    
                     if path:
                         # take new root into account, split off the old scene root.
                         # TODO: support animated cameras from scene?
@@ -901,26 +897,32 @@ class TurntableDialog(PlayblastDialog):
 
                     realstage_filename = R"turntable_assembly.usd"
                     realstage_filename = os.path.join(tempfolder, realstage_filename)
-                    real_stage_filename = os.path.abspath(real_stage_filename)
+                    realstage_filename = os.path.abspath(realstage_filename)
 
-                    assemble_stage.Export(real_stage_filename)
+                    assemble_stage.Export(realstage_filename)
 
-                    real_stage = stack.enter_context(TempStageOpen(real_stage_filename,True))
+                    del assemble_stage
+
+                    stack.enter_context(defer_file_deletion(subject_filename))
+                    stack.enter_context(defer_file_deletion(realstage_filename))
+
+                    real_stage = stack.enter_context(TempStageOpen(realstage_filename))
+   
                     real_render_camera = real_stage.GetPrimAtPath(f"/{render_camera_name}")
                     real_render_camera = UsdGeom.Camera(real_render_camera)
-
-                    # defer real stage camera deletion
-                    stack.enter_context(
-                        defer_primpath_deletion(real_stage,
-                                                real_render_camera.GetPath()))
-
+                    
                     playblast.render_playblast(real_stage,
                                                render_path,
                                                frames=frames_string,
                                                width=width,
-                                               camera=render_camera,
+                                               camera=real_render_camera,
                                                renderer=render_engine,
                                                qt_report_instance=self)
+                    
+                    # Can't go without this, sorry.
+                    # All references to the opened stage have to be deleted 
+                    # for the file to be free.
+                    del real_stage 
             
             routine_rotate_subject() #IIFE ;)
 
