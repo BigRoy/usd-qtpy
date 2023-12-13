@@ -527,6 +527,8 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         if self._has_viewer:
             cbox_camera.addItem("New: Camera from View")
 
+        cbox_camera.setCurrentIndex(0)
+
     def ui_pre_hook(self, vlayout: QtWidgets.QVBoxLayout):
         """
         Override hook to insert QtWidgets BEFORE the main playblast interface.
