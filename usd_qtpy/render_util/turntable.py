@@ -4,12 +4,9 @@ from typing import Union
 import os
 
 from pxr import Usd, UsdGeom, Sdf, Gf
-from qtpy import QtCore
 
 from . import framing_camera, playblast
-from .basecls import RenderReportable
-from ..layer_editor import LayerTreeWidget, LayerStackModel
-from ..lib import usd
+from .base import RenderReportable, get_tempfolder, using_tempfolder
 
 
 def create_turntable_xform(stage: Usd.Stage,
@@ -111,28 +108,7 @@ def get_turntable_frames_string(length: int = 100,
     return playblast.get_frames_string(frame_start,frame_end,1)
 
 
-def pack_stage_root_to_prim(stage: Usd.Stage, goal_prim: Usd.Prim):
-    """
-    Move children of stage root to a primitive.
-    """
-    stage_root = stage.GetPseudoRoot()
-    children: list[Usd.Prim] = list(stage_root.GetChildren())
-    # filter children
-    children = [c for c in children 
-                if not c.GetPath().pathString == goal_prim.GetPath().pathString]
-    usd.parent_prims(children, goal_prim.GetPath())
-
-
-def unpack_prim_to_stage_root(stage: Usd.Stage, from_prim: Usd.Prim):
-    """
-    Move children from a primitive to stage root.
-    """
-    stage_root = stage.GetPseudoRoot()
-    children: list[Usd.Prim] = list(from_prim.GetAllChildren())
-
-    usd.parent_prims(children,stage_root.GetPath())
-
-
+@using_tempfolder
 def turntable_from_file(stage: Usd.Stage,
                         turntable_filename: str = R"./assets/turntable/turntable_preset.usda",
                         export_path: str = R"./temp/render",
@@ -161,19 +137,16 @@ def turntable_from_file(stage: Usd.Stage,
 
     # collect info about subject
     subject_zup = framing_camera.get_stage_up(stage) == "Z"
-    
+
+    # get tempfolder
+    tempfolder = get_tempfolder()
+
     # export subject
     # turntable_filename = R"./assets/turntable_preset.usd"
-    subject_filename = R"./temp/subject.usda"
+    subject_filename = R"subject.usda"
+    subject_filename = os.path.join(tempfolder,subject_filename)
     subject_filename = os.path.abspath(subject_filename)
 
-
-    # make temporary folder to cache current subject session to.
-    if not os.path.isdir("./temp"):
-        os.mkdir("./temp")
-
-    if not os.path.isdir("./temp/render"):
-        os.mkdir("./temp/render")
 
     stage.Export(subject_filename)
 
@@ -294,7 +267,8 @@ def turntable_from_file(stage: Usd.Stage,
         if lights_prim.IsValid():
             lights_prim.GetAttribute("visibility").Set("invisible",0)
 
-    realstage_filename = R"./temp/turntable_assembly.usd"
+    realstage_filename = R"turntable_assembly.usd"
+    realstage_filename = os.path.join(tempfolder, realstage_filename)
     realstage_filename = os.path.abspath(realstage_filename)
 
     ttable_stage.Export(realstage_filename)
@@ -340,10 +314,8 @@ def file_is_zup(path: str) -> bool:
 def get_file_timerange_as_string(path: str) -> str:
     """
     Attempt to get timerange from a USD file.
-
-    DOES NOT APPEAR TO WORK, EVEN WITH CORRECT METADATA.
     """
-    stage = Usd.Stage.CreateInMemory(path)
+    stage = Usd.Stage.Open(path)
 
     if stage.HasAuthoredTimeCodeRange():
         start = int(stage.GetStartTimeCode())
@@ -353,22 +325,6 @@ def get_file_timerange_as_string(path: str) -> str:
         start = 0
         end = 100
 
+    del stage
+
     return playblast.get_frames_string(start,end)
-
-
-def layer_from_layereditor(layer_editor:
-                           LayerTreeWidget) -> Union[Sdf.Layer, None]:
-    """
-    Get current selected layer in layer view, 
-    if none selected, return top of the stack.
-    """
-    
-    if index := layer_editor.view.selectedIndexes():
-        layertree_index = index[0]
-    else:
-        layertree_index = layer_editor.view.indexAt(QtCore.QPoint(0, 0))
-    
-    layer: Sdf.Layer = layertree_index.data(LayerStackModel.LayerRole)
-
-    if not layer:
-        return

@@ -10,7 +10,7 @@ from qtpy import QtCore
 from pxr import Tf, Sdf, Usd, UsdGeom, UsdAppUtils
 from pxr.Usdviewq.stageView import StageView
 
-from .basecls import RenderReportable
+from .base import RenderReportable
 
 def _setup_opengl_widget(width: int, height: int, samples: int = 4):
     """
@@ -66,6 +66,7 @@ def get_file_cameras(path: str) -> list[Sdf.Path]:
     cameras = [c.GetPath() for c in iter_stage_cameras(stage)]
     del stage
     return cameras
+
 
 def camera_from_stageview(stage: Usd.Stage, 
                           stageview: StageView, 

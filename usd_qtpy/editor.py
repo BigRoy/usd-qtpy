@@ -129,12 +129,12 @@ class EditorWindow(QtWidgets.QWidget):
 
         render_snap_with_framingcam = partial(snap_framingcam, self._stage)
 
-        def show_dialog(this, stage, stageview):
-            dialog = render_util.PlayblastDialog(this, stage, stageview)
+        def show_dialog(parent, stage, stageview):
+            dialog = render_util.PlayblastDialog(parent, stage, stageview)
             dialog.show()
 
-        def show_ttable_dialog(this, stage, stageview):
-            dialog = render_util.TurntableDialog(this, stage, stageview)
+        def show_ttable_dialog(parent, stage, stageview):
+            dialog = render_util.TurntableDialog(parent, stage, stageview)
             dialog.show()
 
         render_actions["Snapshot View"].triggered.connect(render_snap)
