@@ -131,6 +131,7 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
     def __init__(self, parent: QtCore.QObject, stage: Usd.Stage, stageview: StageView = None):
         super(PlayblastDialog,self).__init__(parent=parent)
         self.setWindowTitle("USD Playblast")
+        
 
         self.setStyleSheet("QToolButton::menu-indicator {              " 
                                                        "    width: 0px;"
@@ -143,11 +144,13 @@ class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
         self.total_frames.connect(self._set_total_frames)
         self.render_progress.connect(self._set_render_progress)
 
-        width, height, margin = 600, 800, 15
+        width, height, margin = 600, 900, 15
         geometry = QtCore.QRect(margin, margin, 
                                 width - margin * 2, height - margin * 2)
 
-        self.resize(QtCore.QSize(width,height))
+        size = QtCore.QSize(width,height)
+        self.resize(size)
+        self.setFixedSize(size)
 
         self._container = QtWidgets.QGroupBox(self)
         self._container.setTitle("Playblast settings...")
