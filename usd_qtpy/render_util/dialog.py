@@ -2,7 +2,6 @@
 
 import os
 import re
-from typing import Any
 from functools import partial
 from contextlib import ExitStack
 
@@ -129,7 +128,7 @@ def _savepicture_dialog(stage: Usd.Stage,
 
 
 class PlayblastDialog(QtWidgets.QDialog, RenderReportable):
-    def __init__(self, parent: QtCore.QObject, stage: Usd.Stage, stageview: StageView = None) -> Any:
+    def __init__(self, parent: QtCore.QObject, stage: Usd.Stage, stageview: StageView = None):
         super(PlayblastDialog,self).__init__(parent=parent)
         self.setWindowTitle("USD Playblast")
 
