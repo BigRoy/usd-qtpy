@@ -12,6 +12,7 @@ from pxr.Usdviewq.stageView import StageView
 
 from .base import RenderReportable, TempStageOpen
 
+
 def _setup_opengl_widget(width: int, height: int, samples: int = 4):
     """
     Utility function to produce a Qt openGL widget capable of catching

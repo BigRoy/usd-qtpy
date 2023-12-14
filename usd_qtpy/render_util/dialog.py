@@ -19,8 +19,10 @@ from .base import (RenderReportable,
                    defer_file_deletion)
 from ..resources import get_icon
 
+
 REGEX_HASH = re.compile(r"(#{2,})")
 REGEX_FRAMENUM = re.compile(r"(\d+)")
+
 
 def _rectify_path_framenumberspec(path: str, padding: int =  4):
     """Ensure a placeholder for framenumbers exists in the path.

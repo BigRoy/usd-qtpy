@@ -9,6 +9,7 @@ from pxr import Usd, Sdf
 
 TEMPFOLDER = "./temp"
 
+
 def get_tempfolder() -> str:
     """
     Utility function to get temporary folder adress from module

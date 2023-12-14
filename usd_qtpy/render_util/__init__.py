@@ -5,6 +5,7 @@ from .turntable import *
 from .dialog import *
 from .base import *
 
+
 from_base = (RenderReportable, 
              using_tempfolder,
              TempStageOpen
