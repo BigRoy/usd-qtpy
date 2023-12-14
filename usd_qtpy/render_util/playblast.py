@@ -10,7 +10,7 @@ from qtpy import QtCore
 from pxr import Tf, Sdf, Usd, UsdGeom, UsdAppUtils
 from pxr.Usdviewq.stageView import StageView
 
-from .base import RenderReportable
+from .base import RenderReportable, TempStageOpen
 
 def _setup_opengl_widget(width: int, height: int, samples: int = 4):
     """
@@ -62,9 +62,8 @@ def get_file_cameras(path: str) -> list[Sdf.Path]:
     Returns a list of paths
     """
     # cast to list, because the virtual loaded scene goes out of scope.
-    stage = Usd.Stage.Open(path)
-    cameras = [c.GetPath() for c in iter_stage_cameras(stage)]
-    del stage
+    with TempStageOpen(path) as stage:
+        cameras = [c.GetPath() for c in iter_stage_cameras(stage)]
     return cameras
 
 
