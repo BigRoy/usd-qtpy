@@ -181,7 +181,7 @@ def turntable_from_file(stage: Usd.Stage,
         camera_path.replace("turntable","turntable_reference")
         camera_path = Sdf.Path(camera_path)    
         
-        camera_prim = stage.GetPrimAtPath(camera_path)
+        camera_prim = ttable_stage.GetPrimAtPath(camera_path)
         if camera_prim.IsValid():
             turntable_camera = UsdGeom.Camera(camera_prim)
         else:
@@ -281,8 +281,7 @@ def turntable_from_file(stage: Usd.Stage,
     # frame range 1-100 in standard file
     # get_file_timerange_as_string should be preferred, but it doesn't work atm.
     frames_string = get_turntable_frames_string(length,frame_start,repeats)
-    render_path = os.path.join(export_path, "turntablefile_###.png")
-    render_path = os.path.abspath(render_path)
+    render_path = os.path.abspath(export_path)
 
     print("Rendering",frames_string,render_path)
 
@@ -308,6 +307,9 @@ def turntable_from_file(stage: Usd.Stage,
                                    camera=turntable_camera,
                                    renderer=renderer,
                                    qt_report_instance=qt_report_instance)
+        # remove reference count of realstage within this scope.
+        # This is essential to let garbage collection take place.
+        del realstage
 
 
 def file_is_zup(path: str) -> bool:
