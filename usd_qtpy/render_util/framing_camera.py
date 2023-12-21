@@ -33,7 +33,7 @@ def create_framing_camera_in_stage(stage: Usd.Stage,
     # Do prerequisite math so that functions don't have to run these same operations.
     bounds = get_stage_boundingbox(stage)
 
-    is_z_up = (get_stage_up(stage) == "Z")
+    is_z_up = get_stage_up(stage) == "Z"
 
     distance_to_stage = calculate_distance_to_fit_bounds(camera, bounds, is_z_up, fit)
 
@@ -57,34 +57,20 @@ def create_perspective_camera_in_stage(stage: Usd.Stage,
     Creates a camera in the scene with a certain sensor size. 
     Defaults to 16:9 aspect ratio.
     """
-    # Calculate aspect ratio. Cast divisor to float to prevent integer division
-    aspect_ratio: float = width / float(height) 
-    
     camera = UsdGeom.Camera.Define(stage, path)
-
-    # Focus at infinity
-    camera.CreateFocusDistanceAttr(168.60936)
-    camera.CreateFStopAttr(0)
-    
-    # Aperture size (24) is based on the size of a full frame SLR camera sensor
-    # https://en.wikipedia.org/wiki/Image_sensor_format#Common_image_sensor_formats
-    camera.CreateHorizontalApertureAttr(24 * aspect_ratio)
-    camera.CreateHorizontalApertureOffsetAttr(0)
-    camera.CreateVerticalApertureAttr(24)
-    camera.CreateVerticalApertureOffsetAttr(0)
-
+    camera_conform_sensor_to_aspect(camera, width, height)
     camera.CreateProjectionAttr("perspective")
 
     return camera
 
 
 def camera_conform_sensor_to_aspect(camera: UsdGeom.Camera,
-                                   width: int = 16,
-                                   height: int = 9) -> UsdGeom.Camera:
+                                    width: int = 16,
+                                    height: int = 9) -> UsdGeom.Camera:
     """
     Conforms an existing camera's sensor size to render with desired dimensions
     """
-    
+    # Calculate aspect ratio. Cast divisor to float to prevent integer division
     aspect_ratio: float = width / float(height) 
 
     # Focus at infinity
@@ -108,7 +94,7 @@ def _orient_to_z_up(xformable: UsdGeom.Xformable):
 
 def set_first_translation(xformable: UsdGeom.Xformable,
                           translation: Gf.Vec3d) -> UsdGeom.XformOp:
-    """Apply translation to first found translation operation in given Camera.
+    """Apply translation to first found translation operation on xformable.
 
     If no translation op is found then one will be added.
     """
