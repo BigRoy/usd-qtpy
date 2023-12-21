@@ -10,7 +10,7 @@ from qtpy import QtCore
 from pxr import Tf, Sdf, Usd, UsdGeom, UsdAppUtils
 from pxr.Usdviewq.stageView import StageView
 
-from .base import RenderReportable, TempStageOpen
+from .base import RenderReportable
 
 
 def _setup_opengl_widget(width: int, height: int, samples: int = 4):
@@ -62,10 +62,8 @@ def get_file_cameras(path: str) -> list[Sdf.Path]:
     Get USD cameras from USD file
     Returns a list of paths
     """
-    # cast to list, because the virtual loaded scene goes out of scope.
-    with TempStageOpen(path) as stage:
-        cameras = [c.GetPath() for c in iter_stage_cameras(stage)]
-    return cameras
+    stage = Usd.Stage.Open(path)
+    return [camera.GetPath() for camera in iter_stage_cameras(stage)]
 
 
 def camera_from_stageview(stage: Usd.Stage, 
@@ -81,9 +79,11 @@ def camera_from_stageview(stage: Usd.Stage,
     stageview.ExportFreeCameraToStage(stage, name)
     return UsdGeom.Camera.Get(stage, Sdf.Path(f"/{name}"))
 
+
 def get_stageview_frame(stageview: StageView):
     time: Usd.TimeCode = stageview._dataModel.currentFrame
     return time.GetValue()
+
 
 # Source: UsdAppUtils.colorArgs.py
 def get_color_args() -> set[str]:
@@ -133,8 +133,8 @@ def get_frames_string(start_time: int,
     """
     # Keep adhering to USD standard as internally defined.
     from pxr.UsdUtils import TimeCodeRange
-    range_token = TimeCodeRange.Tokens.RangeSeparator   # ":"
-    stride_token = TimeCodeRange.Tokens.StrideSeparator # "x"
+    range_token = TimeCodeRange.Tokens.RangeSeparator    # ":"
+    stride_token = TimeCodeRange.Tokens.StrideSeparator  # "x"
     
     collect = f"{start_time}"
 
@@ -213,6 +213,8 @@ def render_playblast(stage: Usd.Stage,
     from pxr.UsdAppUtils.complexityArgs import RefinementComplexities
     from pxr import UsdUtils
 
+    outputpath = os.path.abspath(outputpath)
+
     # check existence of directory.
     directory = os.path.dirname(outputpath)
     if not os.path.exists(directory):
@@ -272,7 +274,7 @@ def render_playblast(stage: Usd.Stage,
     ogl_widget = _setup_opengl_widget(width, width) # noqa
 
     if purposes is None:
-        purposes = ["default","render","proxy"]
+        purposes = ["default", "render", "proxy"]
 
     # Create FrameRecorder
     frame_recorder = UsdAppUtils.FrameRecorder()
@@ -280,7 +282,7 @@ def render_playblast(stage: Usd.Stage,
     frame_recorder.SetImageWidth(width)  # Only width is needed, height will be computed from camera properties.
     frame_recorder.SetComplexity(complex_level)
     frame_recorder.SetColorCorrectionMode(colormode)
-    frame_recorder.SetIncludedPurposes(purposes) # set to all purposes for now.
+    frame_recorder.SetIncludedPurposes(purposes)
 
     # Use Usds own frame specification parser
     # The following are examples of valid FrameSpecs:
