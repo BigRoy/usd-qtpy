@@ -291,7 +291,6 @@ def render_playblast(stage: Usd.Stage,
         frame_iterator = [Usd.TimeCode.EarliestTime()]
 
     if qt_report_instance:
-        print([f for f in frame_iterator])
         total_frames = len([f for f in frame_iterator])
         qt_report_instance.total_frames.emit(total_frames)
 
