@@ -187,7 +187,7 @@ def turntable_from_preset(
     # Get goal geometry boundingbox if it exists, and fit primitive to it
     bbox_prim = turntable_stage.GetPrimAtPath("/turntable/bounds")
     if bbox_prim.IsValid():
-        subject_nofit_bound = bbox_cache.ComputeWorldBound(subject_prim)
+        subject_input_bound = bbox_cache.ComputeWorldBound(subject_prim)
         goal_bound = bbox_cache.ComputeWorldBound(bbox_prim)
 
         # Get minimum size ratio across different axes
@@ -195,12 +195,12 @@ def turntable_from_preset(
             _goal_size / _subject_size
             for _goal_size, _subject_size
             in zip(goal_bound.GetBox().GetSize(),
-                   subject_nofit_bound.GetBox().GetSize())
+                   subject_input_bound.GetBox().GetSize())
         )
 
-        # SCALE
-        subject_ref_xformable.AddScaleOp(UsdGeom.XformOp.PrecisionDouble)\
-                             .Set(Gf.Vec3d(min_sizediff))
+        # Apply scale to subject xform to fit within bounds
+        precision = UsdGeom.XformOp.PrecisionDouble
+        subject_ref_xformable.AddScaleOp(precision).Set(Gf.Vec3d(min_sizediff))
     else:
         min_sizediff = 1
 
