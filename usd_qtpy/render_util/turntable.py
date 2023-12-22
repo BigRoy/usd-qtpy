@@ -256,8 +256,12 @@ def render_turntable_from_preset(
     )
 
     # turn off the lights if GL
-    # TODO (Question): Why do we need to do this?
     if renderer == "GL":
+        # These will be turned off for GL renders, because GL renders are lit
+        # by default. The introduction of lights would make the renders
+        # overexposed.
+        # TODO: Confirm whether this can be resolved by disabling the default
+        #  camera light from the usdview stage.
         lights_prim = turntable_stage.GetPrimAtPath("/turntable/scene/lights")
         if lights_prim.IsValid():
             lights_prim.GetAttribute("visibility").Set("invisible", 0)
