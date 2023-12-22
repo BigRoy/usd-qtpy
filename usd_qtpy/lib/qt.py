@@ -1,6 +1,7 @@
 import re
 import sys
 import logging
+from functools import wraps
 from qtpy import QtCore, QtGui, QtWidgets
 
 
@@ -55,6 +56,7 @@ def report_error(fn):
     `Tf.Notice` registry because those do not output the errors that occur.
     
     """
+    @wraps(fn) # keep signature and docstring of decorated function intact.
     def wrap(*args, **kwargs):
         try:
             return fn(*args, **kwargs)

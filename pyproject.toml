@@ -11,6 +11,7 @@ name = "usd-qtpy"
 authors = [
     {name = "BigRoy"},
     {name = "Hannes"},
+    {name = "Sasbom"},
 ]
 description = "Python Qt components for building custom USD tools."
 readme = "README.md"

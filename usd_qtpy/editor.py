@@ -29,6 +29,8 @@ class EditorWindow(QtWidgets.QWidget):
             title = f"{title}: {name}"
         self.setWindowTitle(title)
 
+        self._stage = stage
+
         self.setWindowFlags(
             self.windowFlags() |
             QtCore.Qt.Dialog
@@ -49,8 +51,10 @@ class EditorWindow(QtWidgets.QWidget):
         splitter.addWidget(hierarchy_widget)
 
         viewer_widget = None
+        self._stageview = None
         if HAS_VIEWER:
             viewer_widget = viewer.Widget(stage=stage)
+            self._stageview = viewer_widget.view
             splitter.addWidget(viewer_widget)
 
         prim_spec_editor_widget = prim_spec_editor.SpecEditorWindow(stage=stage)
@@ -75,6 +79,7 @@ class EditorWindow(QtWidgets.QWidget):
 
         menubar = QtWidgets.QMenuBar()
 
+        # Panels menu
         panels_menu = menubar.addMenu("Panels")
         for label, widget in self._panels.items():
             action = panels_menu.addAction(label)
@@ -94,5 +99,65 @@ class EditorWindow(QtWidgets.QWidget):
 
         panels_menu.aboutToShow.connect(update_panel_checkstate)
 
+        if HAS_VIEWER:
+            self._build_render_menu(menubar)
+
         layout = self.layout()
         layout.setMenuBar(menubar)
+
+    def _build_render_menu(self, menubar):
+
+        # Import here because we only want to import this dependency
+        # if the viewer libraries exist
+        from . import render_util
+
+        # Render menu
+        render_menu = menubar.addMenu("Render")
+        labels = (
+            "Snapshot View",
+            "Snapshot Framing Camera",
+            "Playblast Stage",
+            "Turntable Stage"
+        )
+        actions = {label: render_menu.addAction(label) for label in labels}
+
+        def render_snap():
+            """Render still frame from current view"""
+            # TODO: Allow picking resolution
+            filepath = render_util.prompt_output_path("Save frame")
+            if not filepath:
+                return
+            render_util.dialog.save_image_from_stageview(self._stageview,
+                                                         filepath)
+
+        def render_snap_framed():
+            """Render still frame from a 'framed camera'"""
+            filepath = render_util.prompt_output_path("Save frame with framing camera")
+            if not filepath:
+                return
+            stage = self._stage
+            camera = render_util.create_framing_camera_in_stage(stage, fit=1.1)
+            render_util.render_playblast(stage, 
+                                         filepath,
+                                         "1", 
+                                         1920, 
+                                         renderer="GL", 
+                                         camera=camera)
+            stage.RemovePrim(camera.GetPath())
+
+        def playblast_stage_dialog():
+            dialog = render_util.PlayblastDialog(self,
+                                                 self._stage,
+                                                 self._stageview)
+            dialog.show()
+
+        def turntable_stage_dialog():
+            dialog = render_util.TurntableDialog(self,
+                                                 self._stage,
+                                                 self._stageview)
+            dialog.show()
+
+        actions["Snapshot View"].triggered.connect(render_snap)
+        actions["Snapshot Framing Camera"].triggered.connect(render_snap_framed)
+        actions["Playblast Stage"].triggered.connect(playblast_stage_dialog)
+        actions["Turntable Stage"].triggered.connect(turntable_stage_dialog)

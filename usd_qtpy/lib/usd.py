@@ -1,4 +1,5 @@
 from collections import defaultdict
+from typing import Union
 
 from pxr import Usd, Plug, Tf, Sdf
 import logging
