@@ -7,8 +7,14 @@ from collections.abc import Generator
 import os
 
 from qtpy import QtCore
-from pxr import Tf, Sdf, Usd, UsdGeom, UsdAppUtils
+from pxr import Tf, Sdf, Usd, UsdGeom, UsdAppUtils, UsdUtils
 from pxr.Usdviewq.stageView import StageView
+from pxr.UsdImagingGL import Engine
+from pxr.UsdAppUtils.framesArgs import (
+    FrameSpecIterator,
+    ConvertFramePlaceholderToFloatSpec
+)
+from pxr.UsdAppUtils.complexityArgs import RefinementComplexities
 
 from .base import RenderReportable
 
@@ -94,7 +100,6 @@ def get_complexity_levels() -> Generator[str]:
     """
     Returns a generator that iterates through all registered complexity presets in UsdAppUtils.complexityArgs
     """
-    from pxr.UsdAppUtils.complexityArgs import RefinementComplexities
     return (item.name for item in RefinementComplexities.ordered())
 
 
@@ -102,7 +107,6 @@ def iter_renderplugin_names() -> Generator[str]:
     """
     Returns a generator that will iterate through all names of Render Engine Plugin / Hydra Delegates
     """
-    from pxr.UsdImagingGL import Engine
     return (
         Engine.GetRendererDisplayName(pluginId)
         for pluginId in Engine.GetRendererPlugins()
@@ -111,7 +115,6 @@ def iter_renderplugin_names() -> Generator[str]:
 
 def get_renderplugin_by_display_name(render_display_name: str) -> Optional[str]:
     """Return renderer plugin from the plugin's nice display name"""
-    from pxr.UsdImagingGL import Engine
     for plug in Engine.GetRendererPlugins():
         if render_display_name == Engine.GetRendererDisplayName(plug):
             return plug
@@ -132,9 +135,8 @@ def get_frames_string(start_time: int,
     as defined by the USD standard.
     """
     # Keep adhering to USD standard as internally defined.
-    from pxr.UsdUtils import TimeCodeRange
-    range_token = TimeCodeRange.Tokens.RangeSeparator    # ":"
-    stride_token = TimeCodeRange.Tokens.StrideSeparator  # "x"
+    range_token = UsdUtils.TimeCodeRange.Tokens.RangeSeparator    # ":"
+    stride_token = UsdUtils.TimeCodeRange.Tokens.StrideSeparator  # "x"
     
     collect = f"{start_time}"
 
@@ -159,7 +161,6 @@ def tuples_to_frames_string(
     (according to standards defined for UsdAppUtils.FrameRecorder)
     """
     # keep adhering to USD standard as internally defined.
-    from pxr.UsdAppUtils.framesArgs import FrameSpecIterator
     separator_token = FrameSpecIterator.FRAMESPEC_SEPARATOR  # ","
 
     def tuple_gen(tuple_iterable):
@@ -208,10 +209,6 @@ def render_playblast(stage: Usd.Stage,
         list[str]: The rendered output files.
 
     """
-    from pxr.UsdAppUtils.framesArgs import \
-         FrameSpecIterator, ConvertFramePlaceholderToFloatSpec
-    from pxr.UsdAppUtils.complexityArgs import RefinementComplexities
-    from pxr import UsdUtils
 
     outputpath = os.path.abspath(outputpath)
 
@@ -228,7 +225,7 @@ def render_playblast(stage: Usd.Stage,
         raise ValueError("Invalid/Empty filepath for rendering")
 
     # Ensure right complexity object is picked.
-    # The internal _RefinementComplexity.value is used to set rendering quality
+    # The internal RefinementComplexity.value is used to set rendering quality
     if isinstance(complexity, str):
         # ensure key correctness
         complexity = complexity.lower()  # set all to lowercase
@@ -271,15 +268,16 @@ def render_playblast(stage: Usd.Stage,
 
     # Set up OpenGL FBO to write to within Widget, actual size doesn't matter
     # Widgets needs to be stored in a variable to avoid garbage collecting
-    ogl_widget = _setup_opengl_widget(width, width) # noqa
+    ogl_widget = _setup_opengl_widget(width, width)  # noqa: F841
 
     if purposes is None:
         purposes = ["default", "render", "proxy"]
 
     # Create FrameRecorder
+    # Only width is needed, height will be computed from camera properties.
     frame_recorder = UsdAppUtils.FrameRecorder()
     frame_recorder.SetRendererPlugin(renderer_plugin)
-    frame_recorder.SetImageWidth(width)  # Only width is needed, height will be computed from camera properties.
+    frame_recorder.SetImageWidth(width)
     frame_recorder.SetComplexity(complex_level)
     frame_recorder.SetColorCorrectionMode(colormode)
     frame_recorder.SetIncludedPurposes(purposes)
