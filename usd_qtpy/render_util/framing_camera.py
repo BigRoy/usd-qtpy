@@ -70,6 +70,8 @@ def camera_conform_sensor_to_aspect(camera: UsdGeom.Camera,
     """
     Conforms an existing camera's sensor size to render with desired dimensions
     """
+    # TODO (Question): should we replace this with pxr.CameraUtil.ConformWindow
+    #  e.g. see: https://github.com/PixarAnimationStudios/OpenUSD/blob/release/pxr/usdImaging/usdviewq/stageView.py#L1554-L1560
     # Calculate aspect ratio. Cast divisor to float to prevent integer division
     aspect_ratio: float = width / float(height) 
 
