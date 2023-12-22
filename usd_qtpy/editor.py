@@ -1,13 +1,11 @@
 import logging
-from functools import partial
 
 from qtpy import QtWidgets, QtCore
 
 from . import (
     prim_hierarchy,
     layer_editor,
-    prim_spec_editor,
-    render_util
+    prim_spec_editor
 )
 
 
@@ -82,7 +80,6 @@ class EditorWindow(QtWidgets.QWidget):
         menubar = QtWidgets.QMenuBar()
 
         # Panels menu
-
         panels_menu = menubar.addMenu("Panels")
         for label, widget in self._panels.items():
             action = panels_menu.addAction(label)
@@ -102,22 +99,43 @@ class EditorWindow(QtWidgets.QWidget):
 
         panels_menu.aboutToShow.connect(update_panel_checkstate)
 
+        if HAS_VIEWER:
+            self._build_render_menu(menubar)
+
+        layout = self.layout()
+        layout.setMenuBar(menubar)
+
+    def _build_render_menu(self, menubar):
+
+        # Import here because we only want to import this dependency
+        # if the viewer libraries exist
+        from . import render_util
+
         # Render menu
         render_menu = menubar.addMenu("Render")
-        render_labels = (
-            "Snapshot View", "Snapshot Framing Camera",
-            "Playblast Stage", "Turntable Stage"
+        labels = (
+            "Snapshot View",
+            "Snapshot Framing Camera",
+            "Playblast Stage",
+            "Turntable Stage"
         )
-        render_actions = {label: render_menu.addAction(label) for label in render_labels}
-        
-        # brings up dialog to snap the current camera view.
-        render_snap = partial(render_util.dialog._savepicture_dialog, self._stage, self._stageview)
+        actions = {label: render_menu.addAction(label) for label in labels}
 
-        def snap_framingcam(stage):
+        def render_snap():
+            """Render still frame from current view"""
+            # TODO: Allow picking resolution
+            filepath = render_util.prompt_output_path("Save frame")
+            if not filepath:
+                return
+            render_util.dialog.save_image_from_stageview(self._stageview,
+                                                         filepath)
+
+        def render_snap_framed():
             """Render still frame from a 'framed camera'"""
             filepath = render_util.prompt_output_path("Save frame with framing camera")
             if not filepath:
                 return
+            stage = self._stage
             camera = render_util.create_framing_camera_in_stage(stage, fit=1.1)
             render_util.render_playblast(stage, 
                                          filepath,
@@ -127,20 +145,19 @@ class EditorWindow(QtWidgets.QWidget):
                                          camera=camera)
             stage.RemovePrim(camera.GetPath())
 
-        render_snap_with_framingcam = partial(snap_framingcam, self._stage)
-
-        def show_dialog(parent, stage, stageview):
-            dialog = render_util.PlayblastDialog(parent, stage, stageview)
+        def playblast_stage_dialog():
+            dialog = render_util.PlayblastDialog(self,
+                                                 self._stage,
+                                                 self._stageview)
             dialog.show()
 
-        def show_ttable_dialog(parent, stage, stageview):
-            dialog = render_util.TurntableDialog(parent, stage, stageview)
+        def turntable_stage_dialog():
+            dialog = render_util.TurntableDialog(self,
+                                                 self._stage,
+                                                 self._stageview)
             dialog.show()
 
-        render_actions["Snapshot View"].triggered.connect(render_snap)
-        render_actions["Snapshot Framing Camera"].triggered.connect(render_snap_with_framingcam)
-        render_actions["Playblast Stage"].triggered.connect(partial(show_dialog, self, self._stage, self._stageview))
-        render_actions["Turntable Stage"].triggered.connect(partial(show_ttable_dialog, self, self._stage, self._stageview))
-
-        layout = self.layout()
-        layout.setMenuBar(menubar)
+        actions["Snapshot View"].triggered.connect(render_snap)
+        actions["Snapshot Framing Camera"].triggered.connect(render_snap_framed)
+        actions["Playblast Stage"].triggered.connect(playblast_stage_dialog)
+        actions["Turntable Stage"].triggered.connect(turntable_stage_dialog)
